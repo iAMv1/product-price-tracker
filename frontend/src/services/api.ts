@@ -222,6 +222,23 @@ export function trackByProduct(
   return postJson('/api/tracked-products/by-product', { storeProductId, options, scrapeIntervalHours });
 }
 
+export interface RunEntry {
+  id: string;
+  triggerType: string;
+  startedAt: string;
+  completedAt: string | null;
+  status: string;
+  targetCount: number;
+  successCount: number;
+  retriedCount: number;
+  failureCount: number;
+}
+
+export async function fetchRuns(): Promise<RunEntry[]> {
+  const data = await getJson<{ results: RunEntry[] }>('/api/runs?limit=10');
+  return data.results;
+}
+
 export function exportCsvUrl(): string {
   return `${BASE_URL}/api/export.csv`;
 }

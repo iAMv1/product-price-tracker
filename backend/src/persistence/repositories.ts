@@ -322,3 +322,125 @@ export async function getExportRows(db: Queryable): Promise<ExportRow[]> {
   );
   return rows<ExportRow>(result);
 }
+
+export interface LatestAttempt {
+  trackedProductId: string;
+  attemptedAt: string;
+  outcome: string;
+  errorCode: string | null;
+}
+
+/**
+ * Latest attempt per target in ONE query (scheduler + alerts batch path).
+ * Grouped in JS: keeps pg-mem compatibility (no DISTINCT ON / window fns).
+ */
+export async function getLatestAttempts(db: Queryable): Promise<LatestAttempt[]> {
+  const result = await db.query(
+    `SELECT tracked_product_id, attempted_at, outcome, error_code
+     FROM scrape_attempts ORDER BY attempted_at DESC, attempt_number DESC`,
+  );
+  const seen = new Set<string>();
+  const out: LatestAttempt[] = [];
+  for (const row of rows<{
+    tracked_product_id: string;
+    attempted_at: string;
+    outcome: string;
+    error_code: string | null;
+  }>(result)) {
+    if (seen.has(row.tracked_product_id)) continue;
+    seen.add(row.tracked_product_id);
+    out.push({
+      trackedProductId: row.tracked_product_id,
+      attemptedAt: row.attempted_at,
+      outcome: row.outcome,
+      errorCode: row.error_code,
+    });
+  }
+  return out;
+}
+
+export interface RecentHistory {
+  trackedProductId: string;
+  price: number;
+  stock: string;
+  observedAt: string;
+}
+
+/** Last two validated observations per active target, one query (alerts path). */
+export async function getRecentHistories(
+  db: Queryable,
+  trackedProductIds: string[],
+): Promise<RecentHistory[]> {
+  if (trackedProductIds.length === 0) return [];
+  const wanted = new Set(trackedProductIds);
+  const result = await db.query(
+    `SELECT tracked_product_id, price, stock, observed_at
+     FROM price_stock_history ORDER BY tracked_product_id, observed_at DESC`,
+  );
+  const counts = new Map<string, number>();
+  const out: RecentHistory[] = [];
+  for (const row of rows<{
+    tracked_product_id: string;
+    price: unknown;
+    stock: string;
+    observed_at: string;
+  }>(result)) {
+    if (!wanted.has(row.tracked_product_id)) continue;
+    const n = counts.get(row.tracked_product_id) ?? 0;
+    if (n >= 2) continue;
+    counts.set(row.tracked_product_id, n + 1);
+    const price = toPrice(row.price);
+    if (price === null) throw new Error('history row has null price');
+    out.push({
+      trackedProductId: row.tracked_product_id,
+      price,
+      stock: row.stock,
+      observedAt: row.observed_at,
+    });
+  }
+  return out;
+}
+
+export interface ScrapeRunSummary {
+  id: string;
+  triggerType: string;
+  startedAt: string;
+  completedAt: string | null;
+  status: string;
+  targetCount: number;
+  successCount: number;
+  retriedCount: number;
+  failureCount: number;
+}
+
+/** Recent invocations: the observable unattended-cadence feed. */
+export async function listRuns(db: Queryable, limit: number): Promise<ScrapeRunSummary[]> {
+  const safe = Number.isInteger(limit) ? Math.min(Math.max(limit, 1), 50) : 20;
+  const result = await db.query(
+    `SELECT id, trigger_type, started_at, completed_at, status,
+            target_count, success_count, retried_count, failure_count
+     FROM scrape_runs ORDER BY started_at DESC LIMIT $1`,
+    [safe],
+  );
+  return rows<{
+    id: string;
+    trigger_type: string;
+    started_at: string;
+    completed_at: string | null;
+    status: string;
+    target_count: number;
+    success_count: number;
+    retried_count: number;
+    failure_count: number;
+  }>(result).map((row) => ({
+    id: row.id,
+    triggerType: row.trigger_type,
+    startedAt: row.started_at,
+    completedAt: row.completed_at,
+    status: row.status,
+    targetCount: row.target_count,
+    successCount: row.success_count,
+    retriedCount: row.retried_count,
+    failureCount: row.failure_count,
+  }));
+}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   fetchHistory,
   fetchScrapeLog,
@@ -9,6 +9,7 @@ import {
   type TrackedTarget,
 } from "../services/api";
 import { cn } from "../lib/cn";
+import { nextScrapeIn } from "../lib/format";
 import { Odometer } from "./ui/odometer";
 import { RelativeTime } from "./ui/relative-time";
 import { Sparkline } from "./ui/sparkline";
@@ -51,6 +52,20 @@ export function TargetCard({
   const [rescraping, setRescraping] = useState(false);
   const [intervalHours, setIntervalHours] = useState(target.scrapeIntervalHours ?? 2);
   const [savingInterval, setSavingInterval] = useState(false);
+  const [confirmUntrack, setConfirmUntrack] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+
+  // Countdown chip ticks once a minute; cleanup on unmount.
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!confirmUntrack) return;
+    const timer = setTimeout(() => setConfirmUntrack(false), 5000);
+    return () => clearTimeout(timer);
+  }, [confirmUntrack]);
 
   async function toggle() {
     const next = !expanded;
@@ -170,6 +185,9 @@ export function TargetCard({
                   {target.lastScrape.errorCode && (
                     <span className="text-muted"> · {target.lastScrape.errorCode}</span>
                   )}
+                  <span className="text-muted">
+                    {" "}· next {nextScrapeIn(target.lastScrape.attemptedAt, target.scrapeIntervalHours, now)}
+                  </span>
                 </>
               ) : (
                 "never scraped"
@@ -246,11 +264,17 @@ export function TargetCard({
         <button
           type="button"
           onClick={() => {
-            void onUntracked(target.id);
+            if (confirmUntrack) {
+              setConfirmUntrack(false);
+              void onUntracked(target.id);
+            } else {
+              setConfirmUntrack(true);
+            }
           }}
+          aria-live="polite"
           className="h-9 touch-manipulation rounded-full px-4 text-[13px] font-medium text-danger outline-hidden transition-[scale,background-color] duration-150 ease-out select-none hover:bg-danger/10 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground active:scale-[0.96] motion-reduce:transition-[background-color]"
         >
-          Untrack
+          {confirmUntrack ? "Confirm untrack?" : "Untrack"}
         </button>
       </div>
 

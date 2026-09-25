@@ -11,6 +11,7 @@ import { exportRouter } from './routes/export.js';
 import { healthRouter } from './routes/health.js';
 import { internalRouter } from './routes/internal.js';
 import { productsRouter } from './routes/products.js';
+import { runsRouter } from './routes/runs.js';
 import { trackedRouter } from './routes/tracked.js';
 
 const notFound: RequestHandler = (req, res) => {
@@ -69,6 +70,7 @@ export function createApp(deps: AppDeps = {}) {
   app.use('/api/tracked-products', trackedRouter);
   app.use('/api', changeRouter);
   app.use('/api', alertsRouter);
+  app.use('/api', runsRouter);
   app.use('/api', exportRouter);
 
   app.use(notFound);

@@ -4,6 +4,7 @@ import { TargetCard } from "../components/TargetCard";
 import { ExpandingSearch } from "../components/ui/expanding-search";
 import { ExportButton, type ExportStatus } from "../components/ui/export-button";
 import { Odometer } from "../components/ui/odometer";
+import { RelativeTime } from "../components/ui/relative-time";
 import { ThemeToggle } from "../components/ui/theme-toggle";
 import {
   ApiError,
@@ -12,6 +13,7 @@ import {
   fetchChangeEvents,
   fetchHealth,
   fetchProduct,
+  fetchRuns,
   listTracked,
   searchProducts,
   trackByProduct,
@@ -20,6 +22,7 @@ import {
   type ChangeEvent,
   type HealthResponse,
   type ProductDetail,
+  type RunEntry,
   type SearchHit,
   type TrackedTarget,
 } from "../services/api";
@@ -48,6 +51,7 @@ export default function Dashboard() {
   const [exportStatus, setExportStatus] = useState<ExportStatus>("idle");
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [changes, setChanges] = useState<ChangeEvent[]>([]);
+  const [runs, setRuns] = useState<RunEntry[]>([]);
   const [pickedMulti, setPickedMulti] = useState<string[]>([]);
   const [bulkTracking, setBulkTracking] = useState(false);
   const [newInterval, setNewInterval] = useState(2);
@@ -61,11 +65,12 @@ export default function Dashboard() {
       setTargetsError(error instanceof Error ? error.message : "Unknown error");
     }
     try {
-      const [a, c] = await Promise.all([fetchAlerts(), fetchChangeEvents()]);
+      const [a, c, r] = await Promise.all([fetchAlerts(), fetchChangeEvents(), fetchRuns()]);
       setAlerts(a);
       setChanges(c);
+      setRuns(r);
     } catch {
-      // Alerts/change feed is bonus UX: dashboard works without it.
+      // Alerts/change/runs feed is bonus UX: dashboard works without it.
     }
   }, []);
 
@@ -77,11 +82,12 @@ export default function Dashboard() {
         if (!cancelled) {
           setBoot({ kind: "ready", health });
           setTargets(list);
-          Promise.all([fetchAlerts(), fetchChangeEvents()])
-            .then(([a, c]) => {
+          Promise.all([fetchAlerts(), fetchChangeEvents(), fetchRuns()])
+            .then(([a, c, r]) => {
               if (!cancelled) {
                 setAlerts(a);
                 setChanges(c);
+                setRuns(r);
               }
             })
             .catch(() => {});
@@ -198,15 +204,6 @@ export default function Dashboard() {
   }
 
   async function untrack(id: string) {
-    const target = targets.find((t) => t.id === id);
-    if (
-      target === undefined ||
-      !window.confirm(
-        `Stop tracking ${target.productName} (${target.selectedOption})? Its history is deleted.`,
-      )
-    ) {
-      return;
-    }
     try {
       const response = await fetch(`/api/tracked-products/${encodeURIComponent(id)}`, {
         method: "DELETE",
@@ -233,7 +230,7 @@ export default function Dashboard() {
     boot.kind === "ready" && !boot.health.integrations.database;
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
+    <main id="main" tabIndex={-1} className="mx-auto w-full max-w-6xl px-4 py-8 outline-none sm:px-6">
       <header className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
@@ -253,11 +250,29 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {boot.kind === "loading" && <p className="mt-8 text-sm text-muted">Contacting backend…</p>}
+      {boot.kind === "loading" && (
+        <div className="mt-8 grid grid-cols-1 gap-4 xl:grid-cols-2" aria-label="Loading">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="animate-pulse rounded-2xl border border-border bg-surface p-5">
+              <div className="h-4 w-2/3 rounded bg-foreground/10" />
+              <div className="mt-3 h-8 w-1/3 rounded bg-foreground/10" />
+              <div className="mt-3 h-3 w-1/2 rounded bg-foreground/10" />
+            </div>
+          ))}
+          <p className="sr-only">Contacting backend…</p>
+        </div>
+      )}
       {boot.kind === "error" && (
-        <p role="alert" className="mt-8 rounded-2xl bg-danger/10 px-4 py-3 text-sm font-medium text-danger">
-          Backend unreachable: {boot.message}. Start it with <code>npm run dev:backend</code>.
-        </p>
+        <div role="alert" className="mt-8 rounded-2xl bg-danger/10 px-4 py-3 text-sm font-medium text-danger">
+          <p>Backend unreachable: {boot.message}. Start it with <code>npm run dev:backend</code>.</p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-2 h-9 rounded-full border border-danger/40 px-4 text-[13px] font-medium hover:bg-danger/10"
+          >
+            Retry
+          </button>
+        </div>
       )}
 
       {boot.kind === "ready" && (
@@ -485,6 +500,27 @@ export default function Dashboard() {
               </div>
             )}
           </section>
+
+          {runs.length > 0 && (
+            <section aria-label="Recent runs" className="mt-4">
+              <h2 className="text-[15px] font-semibold text-foreground">Recent runs</h2>
+              <ol className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                {runs.slice(0, 8).map((run) => (
+                  <li
+                    key={run.id}
+                    className="flex shrink-0 items-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5 text-[13px] tabular-nums"
+                    title={`${run.triggerType} · ${run.targetCount} targets`}
+                  >
+                    <RelativeTime date={run.startedAt} />
+                    <span className="text-muted">{run.triggerType}</span>
+                    <span className="font-medium text-foreground">
+                      {run.successCount}✓{run.failureCount > 0 ? ` ${run.failureCount}✗` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
 
           <section aria-label="Tracked products" className="mt-10">
             <h2 className="text-[15px] font-semibold text-foreground">Tracked</h2>

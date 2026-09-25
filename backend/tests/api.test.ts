@@ -373,6 +373,24 @@ describe('bonus: alerts + change detection', () => {
   });
 });
 
+describe('bonus: run feed (unattended cadence evidence)', () => {
+  it('lists invocations newest-first with batch counts', async () => {
+    const { app } = setup();
+    await request(app)
+      .post('/api/tracked-products')
+      .send({ storeProductId: '2626', selectedOption: 'o1' });
+    const res = await request(app).get('/api/runs?limit=10');
+    expect(res.status).toBe(200);
+    expect(res.body.results.length).toBeGreaterThanOrEqual(1);
+    expect(res.body.results[0]).toMatchObject({
+      triggerType: 'manual',
+      status: 'completed',
+      targetCount: 1,
+      successCount: 1,
+    });
+  });
+});
+
 describe('writes are open (no login wall)', () => {
   it('tracks without any session header', async () => {
     const { app } = setup();
