@@ -60,13 +60,18 @@ export function integrationReadiness(): {
 /**
  * Fails fast on boot when a production deployment is missing a credential that
  * correctness or security depends on. Deliberately not called in tests.
+ * Takes optional overrides so the rule itself stays unit-testable despite
+ * module-level env freezing at import.
  */
-export function assertProductionConfig(): void {
-  if (!isProduction) return;
+export function assertProductionConfig(
+  input: { nodeEnv?: string; databaseUrl?: string; cronSecret?: string } = {},
+): void {
+  const nodeEnv = input.nodeEnv ?? env.nodeEnv;
+  if (nodeEnv !== 'production') return;
 
   const missing: string[] = [];
-  if (env.databaseUrl === '') missing.push('DATABASE_URL');
-  if (env.cronSecret === '') missing.push('CRON_SECRET');
+  if ((input.databaseUrl ?? env.databaseUrl) === '') missing.push('DATABASE_URL');
+  if ((input.cronSecret ?? env.cronSecret) === '') missing.push('CRON_SECRET');
 
   if (missing.length > 0) {
     throw new Error(

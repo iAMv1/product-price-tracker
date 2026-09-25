@@ -140,9 +140,9 @@ CREATE TABLE IF NOT EXISTS price_stock_history (
 
 -- Latest validated observation per tracked product ("NOW" + "WHEN" cards).
 -- Aggregate + join (no DISTINCT ON, no correlated subquery) so the definition
--- runs unchanged on Supabase and in the pg-mem schema test.
-DROP VIEW IF EXISTS v_latest_validated;
-CREATE VIEW v_latest_validated AS
+-- runs unchanged on Supabase and in the pg-mem schema test. OR REPLACE keeps
+-- re-deploys idempotent without a DROP step.
+CREATE OR REPLACE VIEW v_latest_validated AS
 SELECT
   h.tracked_product_id,
   h.price,
@@ -160,8 +160,7 @@ JOIN (
 -- Audit-grade CSV source: one row per attempt, price/stock populated only
 -- where a validated observation exists (LEFT JOIN). Non-success rows are
 -- therefore empty by construction, not by export-code discipline.
-DROP VIEW IF EXISTS v_scrape_attempt_export;
-CREATE VIEW v_scrape_attempt_export AS
+CREATE OR REPLACE VIEW v_scrape_attempt_export AS
 SELECT
   tp.store_product_id AS product_id,
   tp.product_name,

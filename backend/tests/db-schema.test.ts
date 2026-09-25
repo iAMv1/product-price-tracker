@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createSchemaDb } from './helpers/pgmem.js';
+import { applyViews, createSchemaDb } from './helpers/pgmem.js';
 
 /**
  * DB-001 schema test. Runs db/schema.sql against pg-mem and proves the
@@ -32,6 +32,15 @@ const RUN = {
 };
 
 describe('db/schema.sql (DB-001)', () => {
+  it('re-applies views cleanly: view re-deploys are idempotent', () => {
+    const db = loadDb();
+    expect(() => applyViews(db)).not.toThrow();
+    expect(() => applyViews(db)).not.toThrow();
+    // Views still answer after repeated re-deploys.
+    db.public.none(`SELECT * FROM v_latest_validated`);
+    db.public.none(`SELECT * FROM v_scrape_attempt_export`);
+  });
+
   it('persists tracked products and enforces the product+option+url identity', () => {
     const db = loadDb();
     db.public.none(
