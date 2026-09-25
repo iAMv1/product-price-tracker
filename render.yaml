@@ -1,0 +1,31 @@
+# Render blueprint for the Product Price Tracker backend.
+# Dashboard → Blueprints → New Blueprint Instance → point at the repo.
+# Secrets (DATABASE_URL, CRON_SECRET, CORS_ORIGINS) are filled in the
+# dashboard; everything else is pinned here so deploys are reproducible.
+services:
+  - type: web
+    name: ppt-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 24.18.0
+      - key: NODE_ENV
+        value: production
+      # Playwright is a devDependency for the headed demo only; the runtime
+      # price path is plain HTTP (DEC-0008). Skip the ~170MB browser download
+      # so the free-tier build stays fast and small.
+      - key: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
+        value: 1
+      - key: STORE_URL
+        value: https://demo.inelabteamdev.com
+      - key: DATABASE_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
