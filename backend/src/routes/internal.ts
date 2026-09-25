@@ -3,7 +3,7 @@ import { Router, type Request, type Response } from 'express';
 import { env } from '../config/env.js';
 import { listActiveTrackedProducts } from '../persistence/repositories.js';
 import { rowToTarget, runAllTargets } from '../scraper/runner.js';
-import { readDeps, resolveDb } from '../http/deps.js';
+import { readDeps, requireDb } from '../http/deps.js';
 
 /**
  * Scheduler entrypoint (SCHED-001). External cron (cron-job.org) POSTs here
@@ -28,11 +28,8 @@ internalRouter.post('/scrape-all', async (req: Request, res: Response) => {
     res.status(401).json({ error: 'unauthorized', message: 'valid Bearer CRON_SECRET required' });
     return;
   }
-  const db = await resolveDb(req);
-  if (db === null) {
-    res.status(503).json({ error: 'database_not_configured', message: 'DATABASE_URL is not set' });
-    return;
-  }
+  const db = await requireDb(req, res);
+  if (db === null) return;
   const { scrape } = readDeps(req);
   const rows = await listActiveTrackedProducts(db);
   const summary = await runAllTargets(db, {

@@ -39,6 +39,7 @@ export default function App() {
   const [trackError, setTrackError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [exportStatus, setExportStatus] = useState<ExportStatus>("idle");
+  const resetExport = useCallback(() => setExportStatus("idle"), []);
 
   const refreshTargets = useCallback(async () => {
     try {
@@ -51,35 +52,38 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([fetchHealth(), listTracked()])
-      .then(([health, list]) => {
-        if (cancelled) return;
-        setBoot({ kind: "ready", health });
-        setTargets(list);
-      })
-      .catch((error: unknown) => {
+    async function boot() {
+      try {
+        const [health, list] = await Promise.all([fetchHealth(), listTracked()]);
+        if (!cancelled) {
+          setBoot({ kind: "ready", health });
+          setTargets(list);
+        }
+      } catch (error: unknown) {
         if (cancelled) return;
         if (error instanceof ApiError && error.status === 503) {
-          fetchHealth()
-            .then((health) => {
-              if (!cancelled) setBoot({ kind: "ready", health });
-            })
-            .catch(() => {
-              if (!cancelled) {
-                setBoot({
-                  kind: "error",
-                  message: error instanceof Error ? error.message : "Unknown error",
-                });
-              }
-            });
+          // Backend is up but the database is not wired yet: boot read-only.
           setTargetsError(error.message);
+          try {
+            const health = await fetchHealth();
+            if (!cancelled) setBoot({ kind: "ready", health });
+          } catch (inner: unknown) {
+            if (!cancelled) {
+              setBoot({
+                kind: "error",
+                message: inner instanceof Error ? inner.message : "Unknown error",
+              });
+            }
+          }
           return;
         }
         setBoot({
           kind: "error",
           message: error instanceof Error ? error.message : "Unknown error",
         });
-      });
+      }
+    }
+    void boot();
     return () => {
       cancelled = true;
     };
@@ -192,7 +196,7 @@ export default function App() {
           <ExportButton
             status={exportStatus}
             onExport={downloadCsv}
-            onReset={() => setExportStatus("idle")}
+            onReset={resetExport}
           />
           <ThemeToggle />
         </div>

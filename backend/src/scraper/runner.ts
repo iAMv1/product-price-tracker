@@ -7,6 +7,7 @@ import {
   type TrackedProductRow,
 } from '../persistence/repositories.js';
 import { backoffMs, MAX_ATTEMPTS, realSleep, type Sleep } from './retry.js';
+import { errMsg } from '../http/guards.js';
 import type { ScrapeInput, ScrapeResult } from './store/types.js';
 
 /**
@@ -65,7 +66,7 @@ export async function runTarget(
         productUrl: target.productUrl,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errMsg(error);
       await recordNonSuccessAttempt(db, {
         runId,
         trackedProductId: target.id,
@@ -115,7 +116,9 @@ export async function runTarget(
     });
     return { targetId: target.id, finalOutcome: 'failed', attempts: attempt };
   }
-  // Unreachable: the loop always returns on its last iteration.
+  // Unreachable by construction: the loop always returns on its last
+  // iteration (success, terminal failure, or budget-exhausted failure).
+  // Kept as a defensive assert so a future edit cannot silently fall through.
   throw new Error('runTarget exhausted attempts without returning');
 }
 

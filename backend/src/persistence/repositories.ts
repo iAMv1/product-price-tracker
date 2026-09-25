@@ -204,6 +204,36 @@ export async function recordSuccessfulAttempt(
   return (one<{ id: string }>(result)).id;
 }
 
+export async function getTrackedProduct(
+  db: Queryable,
+  id: string,
+): Promise<TrackedProductRow | null> {
+  const result = await db.query(
+    `SELECT id, store_product_id, product_name, selected_option, product_url, is_active
+     FROM tracked_products WHERE id = $1`,
+    [id],
+  );
+  const [row] = rows<Record<string, unknown>>(result);
+  if (row === undefined) return null;
+  if (
+    typeof row['id'] !== 'string' ||
+    typeof row['store_product_id'] !== 'string' ||
+    typeof row['product_name'] !== 'string' ||
+    typeof row['selected_option'] !== 'string' ||
+    typeof row['product_url'] !== 'string'
+  ) {
+    throw new Error('tracked product row failed validation');
+  }
+  return {
+    id: row['id'],
+    store_product_id: row['store_product_id'],
+    product_name: row['product_name'],
+    selected_option: row['selected_option'],
+    product_url: row['product_url'],
+    is_active: row['is_active'] === true,
+  };
+}
+
 export async function getLatestValidated(
   db: Queryable,
   trackedProductId: string,

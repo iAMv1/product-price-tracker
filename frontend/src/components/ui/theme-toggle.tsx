@@ -43,6 +43,7 @@ function applyTheme(theme: Theme) {
   }
 
   void document.body.offsetHeight;
+  // Single tick that always runs: removes its own style node, nothing leaks.
   requestAnimationFrame(() => pause.remove());
 }
 

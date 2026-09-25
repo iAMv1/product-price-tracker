@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, useInView } from "motion/react";
 import { useReducedMotion } from "../../hooks/useReducedMotion";
 import { cn } from "../../lib/cn";
@@ -31,6 +31,12 @@ export function Sparkline({
   const [index, setIndex] = useState(data.length - 1);
   const [active, setActive] = useState(false);
   const [announcement, setAnnouncement] = useState("");
+
+  // Rescrapes replace the dataset: clamp the scrubber into the new range
+  // instead of pointing past its end.
+  useEffect(() => {
+    setIndex((i) => Math.min(Math.max(i, 0), Math.max(data.length - 1, 0)));
+  }, [data.length]);
 
   if (data.length === 0) return null;
   const values = data.map((d) => d.value);
@@ -199,8 +205,8 @@ export function Sparkline({
             </tr>
           </thead>
           <tbody>
-            {data.map((d) => (
-              <tr key={d.label}>
+            {data.map((d, i) => (
+              <tr key={`${d.label}-${i}`}>
                 <th scope="row">{d.label}</th>
                 <td>{format(d.value)}</td>
               </tr>

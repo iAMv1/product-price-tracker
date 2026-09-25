@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import {
-  fetchJson,
+  fetchJsonWithRetry,
   filterListingsByName,
   itemUrl,
   listingsUrl,
@@ -12,21 +12,14 @@ import { productUrl, readDeps, routeParam, storeBaseUrl } from '../http/deps.js'
 /**
  * Catalogue reads (TRACK-001). Plain JSON, no handshake, no database.
  * Search is client-side: the store ignores `?q=`, so we walk listing pages
- * and filter by name until enough matches or pages run out.
+ * and filter by name until enough matches or pages run out. Transient page
+ * failures retry briefly, then the page is skipped rather than failing the
+ * whole search — a 503 on page 28 must not void 27 pages of matches
+ * (observed live mid-walk).
  */
 
 const SEARCH_PAGE_LIMIT = 24;
 const SEARCH_MAX_RESULTS = 20;
-/** Transient page failures retry briefly, then the page is skipped rather
- * than failing the whole search — a 503 on page 28 must not void 27 pages
- * of matches (observed live: listings page 28 returned 503 mid-walk). */
-const SEARCH_PAGE_RETRIES = 2;
-const SEARCH_RETRY_BASE_MS = 300;
-
-const sleep = (ms: number): Promise<void> =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
 
 export const productsRouter = Router();
 
@@ -45,19 +38,13 @@ productsRouter.get('/search', async (req: Request, res: Response) => {
   let incomplete = false;
   try {
     while (page <= totalPages && matches.length < SEARCH_MAX_RESULTS) {
-      let fetched: Awaited<ReturnType<typeof fetchJson>> | null = null;
-      for (let attempt = 0; attempt <= SEARCH_PAGE_RETRIES; attempt += 1) {
-        if (attempt > 0) await sleep(SEARCH_RETRY_BASE_MS * attempt);
-        fetched = await fetchJson(
-          listingsUrl(baseUrl, page, SEARCH_PAGE_LIMIT),
-          `listings page ${page}`,
-          storeFetch,
-        );
-        if (fetched.ok || !fetched.failure.transient) break;
-      }
-      if (fetched === null || !fetched.ok) {
-        // Persistent transient failure (or terminal page error): skip the
-        // page, say so, and keep the matches already collected.
+      const fetched = await fetchJsonWithRetry(
+        listingsUrl(baseUrl, page, SEARCH_PAGE_LIMIT),
+        `listings page ${page}`,
+        storeFetch,
+      );
+      if (!fetched.ok) {
+        // Persistent failure: skip the page, say so, keep collected matches.
         incomplete = true;
         page += 1;
         continue;
@@ -80,9 +67,8 @@ productsRouter.get('/search', async (req: Request, res: Response) => {
       }
       page += 1;
     }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    res.status(500).json({ error: 'handshake_drift', message });
+  } catch {
+    res.status(500).json({ error: 'handshake_drift', message: 'catalogue changed shape unexpectedly' });
     return;
   }
   res.json({ query: q, count: matches.length, incomplete, results: matches });
@@ -95,17 +81,13 @@ productsRouter.get('/:id', async (req: Request, res: Response) => {
     return;
   }
   const { storeFetch } = readDeps(req);
-  let fetched: Awaited<ReturnType<typeof fetchJson>> | null = null;
-  for (let attempt = 0; attempt <= SEARCH_PAGE_RETRIES; attempt += 1) {
-    if (attempt > 0) await sleep(SEARCH_RETRY_BASE_MS * attempt);
-    fetched = await fetchJson(itemUrl(storeBaseUrl(), Number(id)), `item ${id}`, storeFetch);
-    if (fetched.ok || !fetched.failure.transient) break;
-  }
-  if (fetched === null || !fetched.ok) {
-    const failure = fetched === null
-      ? { errorCode: 'http_5xx' as const, errorMessage: `item ${id} unreachable`, transient: true }
-      : fetched.failure;
-    const { errorCode, errorMessage, transient } = failure;
+  const fetched = await fetchJsonWithRetry(
+    itemUrl(storeBaseUrl(), Number(id)),
+    `item ${id}`,
+    storeFetch,
+  );
+  if (!fetched.ok) {
+    const { errorCode, errorMessage, transient } = fetched.failure;
     if (errorCode === 'item_not_found') {
       res.status(404).json({ error: errorCode, message: errorMessage });
       return;
@@ -125,8 +107,7 @@ productsRouter.get('/:id', async (req: Request, res: Response) => {
       options: item.options,
       productUrl: productUrl(String(item.id)),
     });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    res.status(500).json({ error: 'handshake_drift', message });
+  } catch {
+    res.status(500).json({ error: 'handshake_drift', message: 'item changed shape unexpectedly' });
   }
 });

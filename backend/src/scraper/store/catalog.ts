@@ -41,9 +41,8 @@ export interface ListingsPage {
   results: StoreListing[];
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
+import { errMsg, isRecord } from '../../http/guards.js';
+import { realSleep, type Sleep } from '../retry.js';
 
 /** Network/HTTP failure classified for the runner. Never throws. */
 export interface FetchFailure {
@@ -83,7 +82,7 @@ export function classifyHttpStatus(
 }
 
 export function classifyFetchError(error: unknown, what: string): FetchFailure {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = errMsg(error);
   if (/timeout|timed out|abort/i.test(message)) {
     return {
       errorCode: 'timeout',
@@ -91,11 +90,9 @@ export function classifyFetchError(error: unknown, what: string): FetchFailure {
       transient: true,
     };
   }
-  const cause = error instanceof Error ? (error.cause as unknown) : undefined;
+  const cause = error instanceof Error ? error.cause : undefined;
   const code =
-    cause !== null && typeof cause === 'object'
-      ? (cause as { code?: unknown }).code
-      : undefined;
+    isRecord(cause) && typeof cause['code'] === 'string' ? cause['code'] : undefined;
   if (
     code === 'ECONNRESET' ||
     code === 'ECONNREFUSED' ||
@@ -119,8 +116,7 @@ export async function fetchJson(
   url: string,
   what: string,
   fetchImpl: FetchImpl = fetch,
-): Promise<{ ok: true; json: unknown } | { ok: false; failure: FetchFailure }> {
-  let response: Response;
+): Promise<{ ok: true; json: unknown } | { ok: false; failure: FetchFailure }> {  let response: Response;
   try {
     response = await fetchImpl(url, {
       headers: { accept: 'application/json' },
@@ -133,7 +129,7 @@ export async function fetchJson(
   if (statusFailure !== null) return { ok: false, failure: statusFailure };
   try {
     return { ok: true, json: (await response.json()) as unknown };
-  } catch (error) {
+  } catch {
     return {
       ok: false,
       failure: {
@@ -143,6 +139,27 @@ export async function fetchJson(
       },
     };
   }
+}
+
+/**
+ * User-facing reads retry transient failures briefly (2x, 300ms base) before
+ * giving up. The scrape RUNNER owns attempt budgets (SCRAPE-002) and never
+ * uses this — double retry layers would burn the budget twice.
+ */
+export async function fetchJsonWithRetry(
+  url: string,
+  what: string,
+  fetchImpl: FetchImpl = fetch,
+  retries = 2,
+  sleep: Sleep = realSleep,
+): Promise<Awaited<ReturnType<typeof fetchJson>>> {
+  let result = await fetchJson(url, what, fetchImpl);
+  for (let attempt = 1; attempt <= retries; attempt += 1) {
+    if (result.ok || !result.failure.transient) break;
+    await sleep(300 * attempt);
+    result = await fetchJson(url, what, fetchImpl);
+  }
+  return result;
 }
 
 function asString(value: unknown): string | null {
@@ -230,8 +247,7 @@ export function matchOption(
   const hits = item.options.filter((option) => option.id === selectedOption);
   if (hits.length === 0) return { ok: false, errorCode: 'option_not_found' };
   if (hits.length > 1) return { ok: false, errorCode: 'option_ambiguous' };
-  const first = hits[0];
-  if (first === undefined) return { ok: false, errorCode: 'option_not_found' };
+  const first = hits[0] as StoreOption;
   return { ok: true, option: first };
 }
 

@@ -84,9 +84,7 @@ export interface QuotePayload {
   raw: Record<string, unknown>;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
+import { isRecord } from '../../http/guards.js';
 
 /**
  * `wr`: decode the quote blob (base64 → XOR with sha256(dr|enc|pass) → JSON).
@@ -99,12 +97,9 @@ export function decodeQuotePayload(
   pass: string,
 ): QuotePayload {
   const key = sha256Bytes(Buffer.from(`${DR}|enc|${pass}`, 'utf8'));
-  let data: Buffer;
-  try {
-    data = Buffer.from(blobBase64, 'base64');
-  } catch {
-    throw new Error('quote blob is not valid base64');
-  }
+  // Buffer.from(x, 'base64') never throws: it silently clips invalid chars,
+  // so garbage surfaces below as undecodable JSON instead.
+  const data = Buffer.from(blobBase64, 'base64');
   if (data.length === 0 || data.length > 1_000_000) {
     throw new Error(`quote blob has implausible length ${data.length}`);
   }

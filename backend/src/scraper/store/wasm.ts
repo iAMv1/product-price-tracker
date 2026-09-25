@@ -14,17 +14,20 @@ declare const WebAssembly: {
   instantiate(module: unknown): Promise<{ exports: Record<string, unknown> }>;
 };
 
+/** Observed challenge modules are under 1KB; anything huge is not ours. */
+const MAX_WASM_BYTES = 65_536;
+
 export async function callChallengeWasm(
   wasmBase64: string,
   seed: number,
 ): Promise<number> {
-  let bytes: Buffer;
-  try {
-    bytes = Buffer.from(wasmBase64, 'base64');
-  } catch {
-    throw new Error('challenge wasm is not valid base64');
-  }
+  const bytes = Buffer.from(wasmBase64, 'base64');
   if (bytes.length === 0) throw new Error('challenge wasm is empty');
+  if (bytes.length > MAX_WASM_BYTES) {
+    throw new Error(
+      `challenge wasm is ${bytes.length} bytes (cap ${MAX_WASM_BYTES}): storefront drift?`,
+    );
+  }
   const module = await WebAssembly.compile(bytes);
   const instance = await WebAssembly.instantiate(module);
   const fn = (instance.exports as Record<string, unknown>)['f'];

@@ -36,7 +36,7 @@ export interface Queryable {
   query(
     text: string,
     values?: unknown[],
-  ): Promise<{ rows: Array<Record<string, unknown>> }>;
+  ): Promise<{ rows: Array<Record<string, unknown>>; rowCount: number | null }>;
 }
 
 interface PoolLike extends Queryable {

@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import { getExportRows } from '../persistence/repositories.js';
-import { resolveDb } from '../http/deps.js';
+import { requireDb } from '../http/deps.js';
 
 /**
  * Audit-grade CSV export (EXPORT-001). One row per scrape attempt, projected
@@ -15,17 +15,19 @@ const HEADER =
 function cell(value: unknown): string {
   if (value === null || value === undefined) return '';
   const text = value instanceof Date ? value.toISOString() : String(value);
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  // Formula injection: a store-controlled value starting with =,+,-,@ would
+  // execute in Excel. Prefixing with a quote keeps the cell literal.
+  const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+  return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
+
+export const csvCellForTest = cell;
 
 export const exportRouter = Router();
 
 exportRouter.get('/export.csv', async (req: Request, res: Response) => {
-  const db = await resolveDb(req);
-  if (db === null) {
-    res.status(503).json({ error: 'database_not_configured', message: 'DATABASE_URL is not set' });
-    return;
-  }
+  const db = await requireDb(req, res);
+  if (db === null) return;
   const rows = await getExportRows(db);
   const lines = rows.map((row) =>
     [

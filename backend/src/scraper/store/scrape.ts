@@ -8,6 +8,7 @@ import {
 } from './catalog.js';
 import { acquireQuote, type HandshakeDeps } from './handshake.js';
 import { PARSER_VERSION, STORE_BASE_URL } from './constants.js';
+import { errMsg } from '../../http/guards.js';
 import {
   isTransientCode,
   type ScrapeErrorCode,
@@ -103,7 +104,7 @@ async function runScrape(
   try {
     item = parseStoreItem(itemResponse.json);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = errMsg(error);
     return fail(
       input,
       undefined,

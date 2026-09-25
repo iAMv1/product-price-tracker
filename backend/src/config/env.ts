@@ -5,6 +5,15 @@ function readOptional(name: string, fallback: string): string {
   return value === undefined || value.trim() === '' ? fallback : value.trim();
 }
 
+function readPort(): number {
+  const raw = readOptional('PORT', '4000');
+  const port = Number(raw);
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+    throw new Error(`invalid PORT: ${JSON.stringify(raw)}`);
+  }
+  return port;
+}
+
 const nodeEnv = readOptional('NODE_ENV', 'development');
 const isProduction = nodeEnv === 'production';
 
@@ -12,7 +21,7 @@ export const env = {
   nodeEnv,
   isProduction,
 
-  port: Number(readOptional('PORT', '4000')),
+  port: readPort(),
 
   /** Supabase Postgres connection string. Empty until credentials exist. */
   databaseUrl: readOptional('DATABASE_URL', ''),

@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
+import { csvCellForTest } from '../src/routes/export.js';
 import type { FetchImpl } from '../src/scraper/store/catalog.js';
 import type { ScrapeFn } from '../src/scraper/runner.js';
 import type { ScrapeResult } from '../src/scraper/store/types.js';
@@ -184,6 +185,23 @@ describe('tracking + evidence (TRACK-001 / UI-001 reads)', () => {
     expect(rescrape.status).toBe(200);
     expect(rescrape.body).toMatchObject({ succeeded: 1, failed: 0 });
   });
+
+  it('validates ids and reports missing targets on pause/untrack', async () => {
+    const { app } = setup();
+    expect((await request(app).patch('/api/tracked-products/nope').send({ isActive: false })).status).toBe(400);
+    expect(
+      (
+        await request(app)
+          .patch('/api/tracked-products/00000000-0000-4000-8000-000000000000')
+          .send({ isActive: false })
+      ).status,
+    ).toBe(404);
+    expect((await request(app).delete('/api/tracked-products/nope')).status).toBe(400);
+    expect(
+      (await request(app).delete('/api/tracked-products/00000000-0000-4000-8000-000000000000'))
+        .status,
+    ).toBe(404);
+  });
 });
 
 describe('scheduler entrypoint (SCHED-001)', () => {
@@ -211,6 +229,16 @@ describe('scheduler entrypoint (SCHED-001)', () => {
 });
 
 describe('CSV export (EXPORT-001)', () => {
+  it('neutralizes formula-injection cells', () => {
+    expect(csvCellForTest('=CMD|/c calc')).toBe("'=CMD|/c calc");
+    expect(csvCellForTest('+1+1')).toBe("'+1+1");
+    expect(csvCellForTest('@evil')).toBe("'@evil");
+    expect(csvCellForTest('-2+3')).toBe("'-2+3");
+    expect(csvCellForTest('plain')).toBe('plain');
+    expect(csvCellForTest('a,b')).toBe('"a,b"');
+    expect(csvCellForTest(null)).toBe('');
+  });
+
   it('downloads one row per attempt with the assignment column order', async () => {
     const { app } = setup();
     await request(app)
