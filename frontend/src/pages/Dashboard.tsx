@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { TargetCard } from "../components/TargetCard";
+import { SectionTitle, SiteNav } from "../components/site-nav";
 import { ExpandingSearch } from "../components/ui/expanding-search";
 import { ExportButton, type ExportStatus } from "../components/ui/export-button";
-import { Odometer } from "../components/ui/odometer";
 import { RelativeTime } from "../components/ui/relative-time";
-import { ThemeToggle } from "../components/ui/theme-toggle";
+import { formatRupees } from "../lib/format";
 import {
   ApiError,
   exportCsvUrl,
@@ -240,6 +240,8 @@ export default function Dashboard() {
     boot.kind === "ready" && !boot.health.integrations.database;
 
   return (
+    <>
+      <SiteNav variant="app" />
     <main id="main" tabIndex={-1} className="mx-auto w-full max-w-6xl px-4 py-8 outline-none sm:px-6">
       <header className="flex items-start justify-between gap-4">
         <div>
@@ -256,7 +258,6 @@ export default function Dashboard() {
             onExport={downloadCsv}
             onReset={resetExport}
           />
-          <ThemeToggle />
         </div>
       </header>
 
@@ -298,42 +299,88 @@ export default function Dashboard() {
             </p>
           )}
 
-          <section aria-label="Overview" className="mt-6 rounded-2xl border border-border bg-surface p-4 shadow-raised sm:p-5">
-            <h2 className="text-[15px] font-semibold text-foreground">Overview</h2>
-            <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {[
-                { label: "Tracked", value: targets.length, money: false },
-                { label: "Validated", value: targets.filter((t) => t.latest !== null).length, money: false },
-                { label: "Failed last scrape", value: targets.filter((t) => t.lastScrape?.outcome === "failed").length, money: false },
-                { label: "Active alerts", value: alerts.length, money: false },
-              ].map((s) => (
-                <div key={s.label} className="rounded-xl bg-background px-3 py-2.5">
-                  <dt className="text-[12px] text-muted">{s.label}</dt>
-                  <dd className="mt-0.5 text-xl font-semibold tabular-nums">
-                    <Odometer value={s.value} />
-                  </dd>
-                </div>
-              ))}
-            </dl>
-            {(() => {
-              const prices = targets
-                .map((t) => t.latest?.price)
-                .filter((p): p is number => typeof p === "number");
-              if (prices.length === 0) return null;
-              const avg = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length);
-              return (
-                <p className="mt-3 flex items-center gap-2 text-[13px] text-muted">
-                  Average validated price
-                  <span className="font-semibold text-foreground tabular-nums">₹{avg}</span>
-                </p>
-              );
-            })()}
+          <section aria-label="Overview" className="mt-8">
+            <SectionTitle
+              right={
+                <span className="text-[13px] text-muted tabular-nums">
+                  {targets.length} target{targets.length === 1 ? "" : "s"}
+                </span>
+              }
+            >
+              Overview
+            </SectionTitle>
+            <div className="mt-3 overflow-hidden rounded-2xl border border-border bg-surface shadow-raised">
+              <dl className="grid grid-cols-2 sm:grid-cols-4">
+                {(() => {
+                  const failedCount = targets.filter((t) => t.lastScrape?.outcome === "failed").length;
+                  const alertCount = alerts.length;
+                  const stats = [
+                    { label: "Tracked", value: targets.length, tone: "" },
+                    {
+                      label: "Validated",
+                      value: targets.filter((t) => t.latest !== null).length,
+                      tone: "",
+                    },
+                    {
+                      label: "Failed last scrape",
+                      value: failedCount,
+                      tone: failedCount > 0 ? "text-danger" : "",
+                    },
+                    {
+                      label: "Active alerts",
+                      value: alertCount,
+                      tone: alertCount > 0 ? "text-marker" : "",
+                    },
+                  ];
+                  return stats.map((s) => (
+                    <div
+                      key={s.label}
+                      className={[
+                        "border-border px-5 py-4",
+                        "[&:nth-child(odd)]:border-r sm:[&:nth-child(odd)]:border-r-0",
+                        "[&:nth-child(n+3)]:border-t sm:[&:nth-child(n+3)]:border-t-0",
+                        "sm:border-l sm:first:border-l-0",
+                      ].join(" ")}
+                    >
+                      <dt className="text-[12px] font-medium tracking-[0.08em] text-muted uppercase">
+                        {s.label}
+                      </dt>
+                      <dd
+                        className={`mt-1 text-[28px] leading-none font-semibold tabular-nums ${s.tone}`}
+                      >
+                        {s.value}
+                      </dd>
+                    </div>
+                  ));
+                })()}
+              </dl>
+              {(() => {
+                const prices = targets
+                  .map((t) => t.latest?.price)
+                  .filter((p): p is number => typeof p === "number");
+                if (prices.length === 0) return null;
+                const avg = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length);
+                return (
+                  <p className="flex items-center justify-between border-t border-border px-5 py-3 text-[13px] text-muted">
+                    <span>Average validated price</span>
+                    <span className="font-semibold text-foreground tabular-nums">
+                      {formatRupees(avg)}
+                    </span>
+                  </p>
+                );
+              })()}
+            </div>
           </section>
 
           {alerts.length > 0 && (
-            <section aria-label="Alerts" className="mt-4 rounded-2xl border border-border bg-surface p-4 shadow-raised">
-              <h2 className="text-[15px] font-semibold text-foreground">Alerts</h2>
-              <ul className="mt-2 grid gap-1.5 text-[13px]">
+            <section
+              aria-label="Alerts"
+              className="mt-4 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3.5"
+            >
+              <h2 className="text-[13px] font-semibold text-amber-700 dark:text-amber-400">
+                Alerts
+              </h2>
+              <ul className="mt-1.5 grid gap-1.5 text-[13px]">
                 {alerts.map((a, i) => (
                   <li key={`${a.trackedProductId}-${a.type}-${i}`} className="text-foreground">
                     <span className="font-semibold">
@@ -345,7 +392,9 @@ export default function Dashboard() {
                     </span>{" "}
                     <span className="text-muted tabular-nums">
                       {a.productName} ({a.selectedOption})
-                      {a.type === "price_drop" ? ` ₹${a.fromPrice} → ₹${a.toPrice}` : ""}
+                      {a.type === "price_drop"
+                        ? ` ${formatRupees(a.fromPrice ?? 0)} → ${formatRupees(a.toPrice ?? 0)}`
+                        : ""}
                       {a.type === "back_in_stock" ? ` stock ${a.stock}` : ""}
                       {a.type === "scrape_failed" ? ` ${a.errorCode ?? ""}` : ""}
                     </span>
@@ -363,12 +412,13 @@ export default function Dashboard() {
             </p>
           )}
 
-          <section aria-label="Search and track" className="mt-8">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+          <section aria-label="Search and track" className="mt-10">
+            <div className="flex items-center gap-3">
               <h2 className="text-[15px] font-semibold text-foreground">
                 Find a product{" "}
                 <kbd className="ml-1 rounded-md border border-border bg-surface px-1.5 py-0.5 font-mono text-[12px] text-muted">/</kbd>
               </h2>
+              <span aria-hidden className="h-px flex-1 bg-border" />
               <ExpandingSearch
                 placeholder="Product name"
                 onSearch={runSearch}
@@ -512,9 +562,13 @@ export default function Dashboard() {
           </section>
 
           {runs.length > 0 && (
-            <section aria-label="Recent runs" className="mt-4">
-              <h2 className="text-[15px] font-semibold text-foreground">Recent runs</h2>
-              <ol className="mt-2 flex gap-2 overflow-x-auto pb-1">
+            <section aria-label="Recent runs" className="mt-8">
+              <SectionTitle
+                right={<span className="text-[13px] text-muted">every 2 hours</span>}
+              >
+                Recent runs
+              </SectionTitle>
+              <ol className="mt-3 flex flex-wrap gap-2">
                 {runs.slice(0, 8).map((run) => (
                   <li
                     key={run.id}
@@ -533,17 +587,26 @@ export default function Dashboard() {
           )}
 
           <section aria-label="Tracked products" className="mt-10">
-            <h2 className="text-[15px] font-semibold text-foreground">Tracked</h2>
+            <SectionTitle
+              right={
+                <span className="text-[13px] text-muted tabular-nums">
+                  {targets.length}
+                </span>
+              }
+            >
+              Tracked
+            </SectionTitle>
             {targetsError && <p className="mt-2 text-sm text-danger">{targetsError}</p>}
             {targets.length === 0 && targetsError === null && (
               <p className="mt-2 text-sm text-muted">
                 Nothing tracked yet. Expand the search above to add the first target.
               </p>
             )}
-            <div className="mt-3 grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
               {targets.map((target, i) => (
                 <motion.div
                   key={target.id}
+                  className="h-full"
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.32, delay: Math.min(i * 0.06, 0.3), ease: [0.23, 1, 0.32, 1] }}
@@ -573,5 +636,6 @@ export default function Dashboard() {
         </>
       )}
     </main>
+    </>
   );
 }

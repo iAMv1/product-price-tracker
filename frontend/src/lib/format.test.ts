@@ -1,5 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { formatCountdown, nextScrapeIn } from "./format";
+import { formatCountdown, formatNumberIN, formatRupees, nextScrapeIn } from "./format";
+
+describe("formatRupees", () => {
+  it("groups digits the Indian way", () => {
+    expect(formatRupees(70891)).toBe("₹70,891");
+    expect(formatRupees(61782)).toBe("₹61,782");
+    expect(formatRupees(1234567)).toBe("₹12,34,567");
+    expect(formatRupees(999)).toBe("₹999");
+    expect(formatRupees(NaN)).toBe("—");
+  });
+});
+
+describe("formatNumberIN", () => {
+  it("rounds and groups without a symbol", () => {
+    expect(formatNumberIN(61782)).toBe("61,782");
+    expect(formatNumberIN(4.6)).toBe("5");
+    expect(formatNumberIN(Infinity)).toBe("0");
+  });
+});
 
 describe("formatCountdown", () => {
   it("names due states", () => {
