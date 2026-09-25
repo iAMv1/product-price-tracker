@@ -11,10 +11,13 @@ dns.setDefaultResultOrder('ipv4first');
 async function ipv4ConnectionString(): Promise<string> {
   // Splice the hostname only: URL serialization would percent-encode the
   // password (which legitimately contains '@'), breaking auth.
-  // The password itself may contain '@': split on the LAST one.
-  const afterAuth = env.databaseUrl.slice(env.databaseUrl.lastIndexOf('@') + 1);
+  // The password itself may contain '@': split on the LAST one, then replace
+  // the host only inside the post-auth segment (which starts with the host),
+  // so a hostname-looking password or query param can never be corrupted.
+  const at = env.databaseUrl.lastIndexOf('@');
+  const afterAuth = env.databaseUrl.slice(at + 1);
   const host = afterAuth.split(/[/:?]/)[0];
-  if (host === undefined || host === '') return env.databaseUrl;
+  if (at < 0 || host === undefined || host === '') return env.databaseUrl;
   let address: string;
   try {
     address = (await lookup(host, { family: 4 })).address;
@@ -23,7 +26,7 @@ async function ipv4ConnectionString(): Promise<string> {
       `no IPv4 address for Supabase host ${host}: Render free tier cannot reach IPv6-only hosts`,
     );
   }
-  return env.databaseUrl.replace(host, address);
+  return env.databaseUrl.slice(0, at + 1) + afterAuth.replace(host, address);
 }
 
 /**

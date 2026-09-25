@@ -2,9 +2,11 @@ import { createHash } from 'node:crypto';
 import { DR, MAX_POW_NONCE } from './constants.js';
 
 /**
- * Pure storefront cryptography (OBS-20260925-004). Transcribed from the bundle
- * and proven end to end in VER-20260925-002. `mr` in the bundle is plain
- * SHA-256 (all 8 IVs + 64 K constants present), so node:crypto replaces it.
+ * Pure storefront cryptography (OBS-20260925-004). The `mr` step behaves as
+ * plain SHA-256 over the UTF-8 bytes: proven by the live handshake in
+ * VER-20260925-002 (real 200 against the store), which is the external
+ * anchor — the committed fixtures pin our transcription against regressions
+ * but cannot independently prove the algorithm. node:crypto replaces it.
  */
 
 const sha256Bytes = (input: string | Buffer): Buffer =>
