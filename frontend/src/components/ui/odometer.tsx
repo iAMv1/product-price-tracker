@@ -7,40 +7,52 @@ import {
   type MotionValue,
 } from "motion/react";
 import { useReducedMotion } from "../../hooks/useReducedMotion";
+import { formatNumberIN } from "../../lib/format";
 import { cn } from "../../lib/cn";
 
 // Adapted from xevrion/ui-lab (MIT) src/lab/components/odometer.tsx.
 // Rolling digit wheels for the current price; new scrapes roll forward,
-// never spin back. Hold-to-repeat + demo dropped; the price is the export.
+// never spin back. Restyled borderless: no split-flap boxes — the number
+// itself is the object, separators (70,891) render as static glyphs.
 const GLYPHS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 export function Odometer({
   value,
-  digits,
   className,
 }: {
   value: number;
-  digits?: number;
   className?: string;
 }) {
-  const width = digits ?? String(Math.max(0, Math.floor(value))).length;
-  const modulo = 10 ** width;
-  const shown = ((value % modulo) + modulo) % modulo;
+  const text = formatNumberIN(Math.max(0, Math.floor(value)));
+
+  // Place values right-to-left across separators: "70,891" → digits keep
+  // wheel semantics at 10^k, commas are static.
+  const items: Array<{ ch: string; place: number }> = [];
+  let place = 1;
+  for (let i = text.length - 1; i >= 0; i -= 1) {
+    const ch = text.charAt(i);
+    if (ch >= "0" && ch <= "9") {
+      items.unshift({ ch, place });
+      place *= 10;
+    } else {
+      items.unshift({ ch, place: 0 });
+    }
+  }
 
   return (
-    <div
-      className={cn(
-        "inline-flex gap-1 rounded-[22px] bg-surface p-1.5 text-[40px] font-medium tracking-tight shadow-raised",
-        className,
-      )}
-    >
+    <div className={cn("inline-flex items-center font-medium tabular-nums", className)}>
       <output className="sr-only" aria-live="polite">
-        {shown}
+        {text}
       </output>
-      {Array.from({ length: width }, (_, i) => {
-        const place = 10 ** (width - 1 - i);
-        return <Wheel key={place} turns={Math.floor(value / place)} />;
-      })}
+      {items.map((item, i) =>
+        item.place === 0 ? (
+          <span key={i} aria-hidden className="opacity-60">
+            {item.ch}
+          </span>
+        ) : (
+          <Wheel key={i} turns={Math.floor(value / item.place)} />
+        ),
+      )}
     </div>
   );
 }
@@ -62,10 +74,10 @@ function Wheel({ turns }: { turns: number }) {
   return (
     <div
       aria-hidden
-      className="relative h-[1.4em] w-[0.8em] overflow-hidden rounded-2xl bg-background shadow-wheel"
+      className="relative h-[1.15em] w-[0.62em] overflow-hidden"
     >
       <motion.div
-        className="absolute inset-0 [mask-image:linear-gradient(transparent,black_20%,black_80%,transparent)]"
+        className="absolute inset-0 [mask-image:linear-gradient(transparent,black_18%,black_82%,transparent)]"
         style={{ filter: reduceMotion ? "none" : filter }}
       >
         {GLYPHS.map((digit) => (
@@ -92,7 +104,7 @@ function Glyph({
 
   return (
     <motion.span
-      className="absolute inset-0 flex items-center justify-center tabular-nums"
+      className="absolute inset-0 flex items-center justify-center"
       style={{ transform }}
     >
       {digit}

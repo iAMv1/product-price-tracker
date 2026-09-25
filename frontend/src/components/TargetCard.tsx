@@ -9,7 +9,7 @@ import {
   type TrackedTarget,
 } from "../services/api";
 import { cn } from "../lib/cn";
-import { nextScrapeIn } from "../lib/format";
+import { formatRupees, nextScrapeIn } from "../lib/format";
 import { Odometer } from "./ui/odometer";
 import { RelativeTime } from "./ui/relative-time";
 import { Sparkline } from "./ui/sparkline";
@@ -35,6 +35,8 @@ function fullTime(iso: string): string {
  * (scrubbable sparkline), EVIDENCE (history + attempt tables). A failed
  * latest scrape never overwrites the displayed latest: the backend only
  * projects validated observations, and the card shows both side by side.
+ * Actions rank by frequency: Scrape now fills, history ghosts, untrack
+ * floats right behind a two-step confirm.
  */
 export function TargetCard({
   target,
@@ -121,13 +123,13 @@ export function TargetCard({
   return (
     <article
       className={cn(
-        "rounded-2xl border bg-surface p-5 shadow-raised",
+        "flex h-full flex-col rounded-2xl border bg-surface p-5 shadow-raised",
         failed ? "border-danger" : "border-border",
       )}
     >
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="truncate text-[15px] font-semibold tracking-tight text-foreground">
+          <h3 className="truncate text-base font-semibold tracking-tight text-foreground">
             {target.productName}
           </h3>
           <p className="text-[13px] text-muted tabular-nums">
@@ -145,57 +147,59 @@ export function TargetCard({
         {target.lastScrape && <StatusPill outcome={target.lastScrape.outcome} />}
       </header>
 
-      <div className="mt-4 flex flex-wrap items-end gap-x-8 gap-y-4">
-        <div>
-          <p className="text-[13px] text-muted">Current price</p>
-          {target.latest ? (
-            <div className="mt-1 flex items-center gap-2">
-              <span aria-hidden className="text-2xl font-semibold text-muted">
-                ₹
-              </span>
-              <Odometer value={target.latest.price} />
-            </div>
-          ) : (
-            <p className="mt-1 text-sm text-muted">no validated observation yet</p>
-          )}
-        </div>
-        <dl className="grid flex-1 grid-cols-2 gap-x-6 gap-y-3 text-sm">
-          <div>
-            <dt className="text-[13px] text-muted">Stock</dt>
-            <dd className="font-medium text-foreground tabular-nums">
-              {target.latest ? target.latest.stock : "—"}
-            </dd>
+      <div className="mt-4">
+        <p className="text-[13px] text-muted">Current price</p>
+        {target.latest ? (
+          <div className="mt-1 flex items-baseline gap-1.5">
+            <span aria-hidden className="text-xl font-medium text-muted">
+              ₹
+            </span>
+            <Odometer
+              value={target.latest.price}
+              className="text-[34px] leading-none font-semibold tracking-tight text-foreground"
+            />
           </div>
-          <div>
-            <dt className="text-[13px] text-muted">Last success</dt>
-            <dd className="font-medium text-foreground">
-              {target.latest ? (
-                <RelativeTime date={target.latest.observedAt} />
-              ) : (
-                "—"
-              )}
-            </dd>
-          </div>
-          <div className="col-span-2">
-            <dt className="text-[13px] text-muted">Last scrape</dt>
-            <dd className="font-medium text-foreground">
-              {target.lastScrape ? (
-                <>
-                  <RelativeTime date={target.lastScrape.attemptedAt} />
-                  {target.lastScrape.errorCode && (
-                    <span className="text-muted"> · {target.lastScrape.errorCode}</span>
-                  )}
-                  <span className="text-muted">
-                    {" "}· next {nextScrapeIn(target.lastScrape.attemptedAt, target.scrapeIntervalHours, now)}
-                  </span>
-                </>
-              ) : (
-                "never scraped"
-              )}
-            </dd>
-          </div>
-        </dl>
+        ) : (
+          <p className="mt-1 text-sm text-muted">no validated observation yet</p>
+        )}
       </div>
+
+      <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+        <div>
+          <dt className="text-[13px] text-muted">Stock</dt>
+          <dd className="font-medium text-foreground tabular-nums">
+            {target.latest ? target.latest.stock : "—"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-[13px] text-muted">Last success</dt>
+          <dd className="font-medium text-foreground">
+            {target.latest ? (
+              <RelativeTime date={target.latest.observedAt} />
+            ) : (
+              "—"
+            )}
+          </dd>
+        </div>
+        <div className="col-span-2">
+          <dt className="text-[13px] text-muted">Last scrape</dt>
+          <dd className="font-medium text-foreground">
+            {target.lastScrape ? (
+              <>
+                <RelativeTime date={target.lastScrape.attemptedAt} />
+                {target.lastScrape.errorCode && (
+                  <span className="text-muted"> · {target.lastScrape.errorCode}</span>
+                )}
+                <span className="text-muted">
+                  {" "}· next {nextScrapeIn(target.lastScrape.attemptedAt, target.scrapeIntervalHours, now)}
+                </span>
+              </>
+            ) : (
+              "never scraped"
+            )}
+          </dd>
+        </div>
+      </dl>
 
       {failed && (
         <p
@@ -211,7 +215,7 @@ export function TargetCard({
           <Sparkline
             data={points}
             title="Price history"
-            format={(v) => `₹${v}`}
+            format={(v) => formatRupees(v)}
           />
         </div>
       )}
@@ -231,25 +235,25 @@ export function TargetCard({
             max={168}
             value={intervalHours}
             onChange={(e) => setIntervalHours(Number(e.target.value))}
-            className="h-8 w-16 rounded-lg border border-border bg-background px-2 text-foreground tabular-nums"
+            className="h-8 w-16 rounded-lg border border-border bg-background px-2 text-center text-foreground tabular-nums"
           />{" "}
           h
         </label>
         <button
           type="submit"
           disabled={savingInterval}
-          className="h-8 rounded-full px-3 font-medium text-foreground hover:bg-foreground/10 disabled:opacity-50"
+          className="h-8 rounded-full border border-border px-3 font-medium text-foreground hover:bg-foreground/10 disabled:opacity-50"
         >
           {savingInterval ? "Saving…" : "Save"}
         </button>
       </form>
 
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">
         <button
           type="button"
           onClick={toggle}
           aria-expanded={expanded}
-          className="h-9 touch-manipulation rounded-full px-4 text-[13px] font-medium text-foreground outline-hidden transition-[scale,background-color] duration-150 ease-out select-none hover:bg-foreground/10 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground active:scale-[0.96] motion-reduce:transition-[background-color]"
+          className="h-9 touch-manipulation rounded-full border border-border px-4 text-[13px] font-medium text-foreground outline-hidden transition-[scale,background-color] duration-150 ease-out select-none hover:bg-foreground/10 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground active:scale-[0.96] motion-reduce:transition-[background-color]"
         >
           {expanded ? "Hide history and log" : "History and log"}
         </button>
@@ -257,7 +261,7 @@ export function TargetCard({
           type="button"
           onClick={rescrape}
           disabled={rescraping}
-          className="h-9 touch-manipulation rounded-full px-4 text-[13px] font-medium text-foreground outline-hidden transition-[scale,background-color] duration-150 ease-out select-none hover:bg-foreground/10 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground active:scale-[0.96] motion-reduce:transition-[background-color] disabled:opacity-50"
+          className="h-9 touch-manipulation rounded-full bg-foreground px-4 text-[13px] font-medium text-background outline-hidden transition-[scale,opacity] duration-150 ease-out select-none hover:opacity-90 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground active:scale-[0.96] motion-reduce:transition-[opacity] disabled:opacity-50"
         >
           {rescraping ? "Scraping…" : "Scrape now"}
         </button>
@@ -272,7 +276,7 @@ export function TargetCard({
             }
           }}
           aria-live="polite"
-          className="h-9 touch-manipulation rounded-full px-4 text-[13px] font-medium text-danger outline-hidden transition-[scale,background-color] duration-150 ease-out select-none hover:bg-danger/10 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground active:scale-[0.96] motion-reduce:transition-[background-color]"
+          className="ml-auto h-9 touch-manipulation rounded-full px-4 text-[13px] font-medium text-danger outline-hidden transition-[scale,background-color] duration-150 ease-out select-none hover:bg-danger/10 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground active:scale-[0.96] motion-reduce:transition-[background-color]"
         >
           {confirmUntrack ? "Confirm untrack?" : "Untrack"}
         </button>
@@ -302,7 +306,7 @@ export function TargetCard({
                   <tr key={entry.observed_at} className="border-t border-border">
                     <td className="py-1.5 pr-3 text-muted">{fullTime(entry.observed_at)}</td>
                     <td className="py-1.5 pr-3 font-medium text-foreground tabular-nums">
-                      ₹{entry.price}
+                      {formatRupees(entry.price)}
                     </td>
                     <td className="py-1.5 tabular-nums">{entry.stock}</td>
                   </tr>
@@ -338,7 +342,7 @@ export function TargetCard({
                     </td>
                     <td className="py-1.5 text-muted">
                       {entry.outcome === "success"
-                        ? `₹${entry.price} · ${entry.stock}`
+                        ? `${formatRupees(entry.price ?? 0)} · ${entry.stock}`
                         : (entry.error_code ?? entry.error_message ?? "—")}
                     </td>
                   </tr>
