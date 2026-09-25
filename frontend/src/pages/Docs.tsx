@@ -32,10 +32,10 @@ const SECTIONS: Array<{ id: string; title: string; body: string[]; code?: string
     ],
   },
   {
-    id: "auth",
-    title: "Auth + Google setup",
+    id: "tracking",
+    title: "Tracking",
     body: [
-      "1) Supabase dashboard → Authentication → Providers → enable Email and Google. 2) Google Cloud Console → OAuth client (web) → authorized redirect URI from the Supabase Google provider page → paste client ID + secret into Supabase. 3) Supabase → Authentication → URL Configuration → add https://product-price-tracker-ochre.vercel.app. 4) Set VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY on Vercel and SUPABASE_URL + SUPABASE_ANON_KEY on Render, redeploy both.",
+      "Search by partial or full product name, pick the exact option, and track it — the first scrape runs immediately so the card never waits for the cron tick. Each card carries its own scrape cadence (default 2h, range 1–168h); the scheduler skips recently-scraped targets and reports them as skipped. Multiple options of one product track together via the checkboxes and the one-run button.",
     ],
   },
   {

@@ -2,12 +2,12 @@ import { ThemeToggle } from "../components/ui/theme-toggle";
 
 const ENTRIES: Array<{ v: string; date: string; items: string[] }> = [
   {
-    v: "v0.3 — Accounts & story",
+    v: "v0.3 — Story & navigation",
     date: "2026-09-25",
     items: [
-      "Supabase Auth: email + Google sign-in; writes require a session, reads stay public.",
       "Story-led landing with live proof ticker, scroll chapters, method bento.",
-      "Docs and changelog pages; hash routing across landing, login, app.",
+      "Hash-routed docs and changelog pages; dashboard deep-linkable at #/app.",
+      "Auth experiment reverted: the dashboard stays open, no login wall.",
     ],
   },
   {

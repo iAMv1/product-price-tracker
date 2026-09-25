@@ -7,7 +7,6 @@ import {
 import { rowToTarget, runAllTargets } from '../scraper/runner.js';
 import { fetchJson, itemUrl, matchOption, parseStoreItem } from '../scraper/store/catalog.js';
 import { productUrl, readDeps, requireDb, storeBaseUrl } from '../http/deps.js';
-import { requireUser } from '../http/auth.js';
 
 /**
  * Multi-option scrape in one run (bonus): track + scrape several options of
@@ -32,8 +31,7 @@ byProductRouter.post('/by-product', async (req: Request, res: Response) => {
     return;
   }
   const unique = [...new Set(options)];
-  const { storeFetch, scrape, authVerify } = readDeps(req);
-  if ((await requireUser(req, res, authVerify)) === null) return;
+  const { storeFetch, scrape } = readDeps(req);
   const baseUrl = storeBaseUrl();
   const itemId = Number(storeProductId);
 

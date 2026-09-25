@@ -1,18 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 
-export type Route = "landing" | "login" | "app" | "docs" | "changelog";
+export type Route = "landing" | "app" | "docs" | "changelog";
 
 export function parseHash(hash: string): Route {
   const clean = hash.replace(/^#\/?/, "").split("?")[0];
-  if (clean === "" || clean === "landing") return "landing";
-  if (clean === "login") return "login";
   if (clean === "app") return "app";
   if (clean === "docs") return "docs";
   if (clean === "changelog") return "changelog";
   return "landing";
 }
 
-/** Minimal hash router: no dependency, deep-linkable, OAuth-safe (#/app). */
+/** Minimal hash router: no dependency, deep-linkable. */
 export function useRoute(): [Route, (route: Route) => void] {
   const [route, setRoute] = useState<Route>(() =>
     typeof window === "undefined" ? "landing" : parseHash(window.location.hash),

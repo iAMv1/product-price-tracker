@@ -17,7 +17,6 @@
     "headed:scrape": "tsx tools/headed-scrape.ts 2626 o1 2229 o2 2092 o2"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.117.2",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.2",

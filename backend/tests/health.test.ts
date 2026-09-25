@@ -14,7 +14,6 @@ describe('GET /health', () => {
     expect(response.body.integrations).toEqual({
       database: expect.any(Boolean),
       schedulerAuth: expect.any(Boolean),
-      userAuth: expect.any(Boolean),
     });
     expect(Number.isNaN(Date.parse(response.body.checkedAt))).toBe(false);
   });
