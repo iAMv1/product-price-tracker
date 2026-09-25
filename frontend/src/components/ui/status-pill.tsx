@@ -18,6 +18,7 @@ const KEYFRAMES = `
 export function StatusPill({ outcome }: { outcome: string }) {
   const failed = outcome === "failed";
   const retried = outcome === "retried";
+  const label = failed ? "Failed" : retried ? "Retried" : outcome === "success" ? "Success" : outcome;
   return (
     <span
       className={cn(
@@ -39,7 +40,7 @@ export function StatusPill({ outcome }: { outcome: string }) {
         />
       </span>
       <span aria-hidden className="whitespace-nowrap">
-        {outcome}
+        {label}
       </span>
     </span>
   );
