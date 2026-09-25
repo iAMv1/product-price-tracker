@@ -86,15 +86,9 @@ export default function Landing() {
             Price Tracker
           </a>
           <nav className="flex items-center gap-1 text-sm sm:gap-2">
-            {["Dashboard", "Docs", "Changelog"].map((label) => (
-              <a
-                key={label}
-                href={`#/${label.toLowerCase()}`}
-                className="rounded-full px-3 py-1.5 hover:bg-foreground/10 first:hidden sm:first:inline"
-              >
-                {label}
-              </a>
-            ))}
+            <a href="#/app" className="rounded-full px-3 py-1.5 hover:bg-foreground/10">Dashboard</a>
+            <a href="#/docs" className="hidden rounded-full px-3 py-1.5 hover:bg-foreground/10 sm:inline">Docs</a>
+            <a href="#/changelog" className="hidden rounded-full px-3 py-1.5 hover:bg-foreground/10 sm:inline">Changelog</a>
             <a href="#/app" className="rounded-full bg-foreground px-4 py-1.5 font-medium text-background">Open app</a>
             <ThemeToggle />
           </nav>

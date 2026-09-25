@@ -81,7 +81,12 @@ export function ExpandingSearch({
     : { scale: 0.25, opacity: 0, filter: "blur(4px)" };
 
   return (
-    <div className={cn("flex justify-end", className)} style={{ width }}>
+    <motion.div
+      initial={false}
+      animate={{ width: open ? width : COLLAPSED }}
+      transition={widthTransition}
+      className={cn("flex justify-end", className)}
+    >
       <motion.form
         ref={rootRef}
         role="search"
@@ -207,6 +212,6 @@ export function ExpandingSearch({
           )}
         </AnimatePresence>
       </motion.form>
-    </div>
+    </motion.div>
   );
 }
