@@ -135,14 +135,6 @@ npm run headed:scrape             # opens headed Chromium + runs real scraper ve
 
 Full recording script: `backend/tools/HEADED_RECORDING.md`.
 
-## Accounts
-
-Reads (dashboard, search, history, CSV) stay public. Writes (track, untrack,
-rescrape, cadence, multi-option) need a Supabase Auth session: email+password
-or Google OAuth. Login lives at `#/login`; Google needs its provider enabled
-in Supabase + client ID pasted (see Docs page, Auth section). Without
-`SUPABASE_*` env the backend runs open dev mode and reports `userAuth:false`.
-
 ## Bonus features (all six)
 
 | Bonus | Where |

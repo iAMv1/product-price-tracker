@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
+import { motion } from "motion/react";
 import { TargetCard } from "../components/TargetCard";
 import { ExpandingSearch } from "../components/ui/expanding-search";
 import { ExportButton, type ExportStatus } from "../components/ui/export-button";
+import { Odometer } from "../components/ui/odometer";
 import { ThemeToggle } from "../components/ui/theme-toggle";
-import { useAuth } from "../auth/AuthContext";
-import { authConfigured } from "../lib/supabase";
 import {
   ApiError,
-  authedFetch,
   exportCsvUrl,
   fetchAlerts,
   fetchChangeEvents,
@@ -31,7 +30,6 @@ type BootState =
   | { kind: "error"; message: string };
 
 export default function Dashboard() {
-  const { user } = useAuth();
   const [boot, setBoot] = useState<BootState>({ kind: "loading" });
   const [targets, setTargets] = useState<TrackedTarget[]>([]);
   const [targetsError, setTargetsError] = useState<string | null>(null);
@@ -210,16 +208,10 @@ export default function Dashboard() {
       return;
     }
     try {
-      const response = await authedFetch(`/api/tracked-products/${encodeURIComponent(id)}`, {
+      const response = await fetch(`/api/tracked-products/${encodeURIComponent(id)}`, {
         method: "DELETE",
       });
-      if (!response.ok) {
-        if (response.status === 401) {
-          setTargetsError("Sign in to untrack products.");
-          return;
-        }
-        throw new Error(`untrack failed with HTTP ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`untrack failed with HTTP ${response.status}`);
       await refreshTargets();
     } catch (error) {
       setTargetsError(error instanceof Error ? error.message : "Unknown error");
@@ -281,32 +273,36 @@ export default function Dashboard() {
             </p>
           )}
 
-          {authConfigured && !user && (
-            <p role="status" className="mt-6 rounded-2xl border border-border bg-surface px-4 py-3 text-sm text-muted shadow-raised">
-              Browsing read-only.{" "}
-              <a href="#/login" className="font-medium text-foreground underline underline-offset-2">
-                Sign in
-              </a>{" "}
-              to track, rescrape, or change cadence.
-            </p>
-          )}
-
-          <section aria-label="Overview" className="mt-6 rounded-2xl border border-border bg-surface p-4 shadow-raised">
+          <section aria-label="Overview" className="mt-6 rounded-2xl border border-border bg-surface p-4 shadow-raised sm:p-5">
             <h2 className="text-[15px] font-semibold text-foreground">Overview</h2>
-            <p className="mt-1 text-[13px] text-muted tabular-nums">
-              {targets.length} tracked ·{" "}
-              {targets.filter((t) => t.latest !== null).length} with validated price ·{" "}
-              {targets.filter((t) => t.lastScrape?.outcome === "failed").length} failed last scrape ·{" "}
-              {alerts.length} active alert{alerts.length === 1 ? "" : "s"}
-              {(() => {
-                const prices = targets
-                  .map((t) => t.latest?.price)
-                  .filter((p): p is number => typeof p === "number");
-                if (prices.length === 0) return "";
-                const avg = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length);
-                return ` · avg ₹${avg}`;
-              })()}
-            </p>
+            <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                { label: "Tracked", value: targets.length, money: false },
+                { label: "Validated", value: targets.filter((t) => t.latest !== null).length, money: false },
+                { label: "Failed last scrape", value: targets.filter((t) => t.lastScrape?.outcome === "failed").length, money: false },
+                { label: "Active alerts", value: alerts.length, money: false },
+              ].map((s) => (
+                <div key={s.label} className="rounded-xl bg-background px-3 py-2.5">
+                  <dt className="text-[12px] text-muted">{s.label}</dt>
+                  <dd className="mt-0.5 text-xl font-semibold tabular-nums">
+                    <Odometer value={s.value} />
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            {(() => {
+              const prices = targets
+                .map((t) => t.latest?.price)
+                .filter((p): p is number => typeof p === "number");
+              if (prices.length === 0) return null;
+              const avg = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length);
+              return (
+                <p className="mt-3 flex items-center gap-2 text-[13px] text-muted">
+                  Average validated price
+                  <span className="font-semibold text-foreground tabular-nums">₹{avg}</span>
+                </p>
+              );
+            })()}
           </section>
 
           {alerts.length > 0 && (
@@ -344,7 +340,10 @@ export default function Dashboard() {
 
           <section aria-label="Search and track" className="mt-8">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-[15px] font-semibold text-foreground">Find a product</h2>
+              <h2 className="text-[15px] font-semibold text-foreground">
+                Find a product{" "}
+                <kbd className="ml-1 rounded-md border border-border bg-surface px-1.5 py-0.5 font-mono text-[12px] text-muted">/</kbd>
+              </h2>
               <ExpandingSearch
                 placeholder="Product name"
                 onSearch={runSearch}
@@ -496,13 +495,19 @@ export default function Dashboard() {
               </p>
             )}
             <div className="mt-3 grid grid-cols-1 gap-4 xl:grid-cols-2">
-              {targets.map((target) => (
-                <TargetCard
+              {targets.map((target, i) => (
+                <motion.div
                   key={target.id}
-                  target={target}
-                  onChanged={refreshTargets}
-                  onUntracked={untrack}
-                />
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.32, delay: Math.min(i * 0.06, 0.3), ease: [0.23, 1, 0.32, 1] }}
+                >
+                  <TargetCard
+                    target={target}
+                    onChanged={refreshTargets}
+                    onUntracked={untrack}
+                  />
+                </motion.div>
               ))}
             </div>
           </section>

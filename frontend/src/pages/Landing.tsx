@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion, useScroll, useTransform } from "motion/react";
 import { listTracked, type TrackedTarget } from "../services/api";
 import { ThemeToggle } from "../components/ui/theme-toggle";
-import { useAuth } from "../auth/AuthContext";
 
 /**
  * Story-led landing. One idea per viewport: the store is awkward, the log is
@@ -74,7 +73,6 @@ const CHAPTERS = [
 ];
 
 export default function Landing() {
-  const { user } = useAuth();
   const heroRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
   const heroY = useTransform(scrollYProgress, [0, 1], [0, 120]);
@@ -88,14 +86,16 @@ export default function Landing() {
             Price Tracker
           </a>
           <nav className="flex items-center gap-1 text-sm sm:gap-2">
-            <a href="#/app" className="rounded-full px-3 py-1.5 hover:bg-foreground/10">Dashboard</a>
-            <a href="#/docs" className="hidden rounded-full px-3 py-1.5 hover:bg-foreground/10 sm:inline">Docs</a>
-            <a href="#/changelog" className="hidden rounded-full px-3 py-1.5 hover:bg-foreground/10 sm:inline">Changelog</a>
-            {user ? (
-              <a href="#/app" className="rounded-full bg-foreground px-4 py-1.5 font-medium text-background">Open app</a>
-            ) : (
-              <a href="#/login" className="rounded-full bg-foreground px-4 py-1.5 font-medium text-background">Sign in</a>
-            )}
+            {["Dashboard", "Docs", "Changelog"].map((label) => (
+              <a
+                key={label}
+                href={`#/${label.toLowerCase()}`}
+                className="rounded-full px-3 py-1.5 hover:bg-foreground/10 first:hidden sm:first:inline"
+              >
+                {label}
+              </a>
+            ))}
+            <a href="#/app" className="rounded-full bg-foreground px-4 py-1.5 font-medium text-background">Open app</a>
             <ThemeToggle />
           </nav>
         </div>
@@ -116,13 +116,13 @@ export default function Landing() {
           <div className="mt-8 flex flex-wrap gap-3">
             <a
               href="#/app"
-              className="h-11 rounded-full bg-foreground px-6 leading-11 font-medium text-background hover:opacity-90"
+              className="flex h-11 items-center rounded-full bg-foreground px-6 font-medium text-background hover:opacity-90"
             >
               See live proof
             </a>
             <a
               href="#/docs"
-              className="h-11 rounded-full border border-border px-6 leading-11 font-medium hover:bg-foreground/10"
+              className="flex h-11 items-center rounded-full border border-border px-6 font-medium hover:bg-foreground/10"
             >
               How it works
             </a>
@@ -178,14 +178,12 @@ export default function Landing() {
                 Three products. Live prices. Honest failures.
               </h2>
               <div className="mt-6 flex flex-wrap gap-3">
-                <a href="#/app" className="h-11 rounded-full bg-background px-6 leading-11 font-medium text-foreground">
+                <a href="#/app" className="flex h-11 items-center rounded-full bg-background px-6 font-medium text-foreground">
                   Open the dashboard
                 </a>
-                {!user && (
-                  <a href="#/login" className="h-11 rounded-full border border-background/30 px-6 leading-11 font-medium">
-                    Sign in to track
-                  </a>
-                )}
+                <a href="#/docs" className="flex h-11 items-center rounded-full border border-background/30 px-6 font-medium">
+                  Read the docs
+                </a>
               </div>
             </div>
           </Reveal>
