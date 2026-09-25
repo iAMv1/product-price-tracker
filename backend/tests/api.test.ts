@@ -59,9 +59,17 @@ const scriptedSuccess: ScrapeFn = (input) =>
 
 function setup() {
   const db = createTestQueryable(createSchemaDb());
-  const app = createApp({ db, storeFetch: stubStore, scrape: scriptedSuccess });
+  const app = createApp({
+    db,
+    storeFetch: stubStore,
+    scrape: scriptedSuccess,
+    authVerify: async (token) =>
+      token === 'test-token' ? { id: 'user-1', email: 'test@example.com' } : null,
+  });
   return { app, db };
 }
+
+const AUTH = { Authorization: 'Bearer test-token' };
 
 describe('product search + detail (TRACK-001)', () => {
   it('searches by partial name and exposes the store id + URL', async () => {
@@ -132,7 +140,7 @@ describe('tracking + evidence (TRACK-001 / UI-001 reads)', () => {
   it('tracks with validation, dedupes, and scrapes immediately', async () => {
     const { app } = setup();
     const created = await request(app)
-      .post('/api/tracked-products')
+      .post('/api/tracked-products').set(AUTH)
       .send({ storeProductId: '2626', selectedOption: 'o1' });
     expect(created.status).toBe(201);
     expect(created.body).toMatchObject({
@@ -144,13 +152,13 @@ describe('tracking + evidence (TRACK-001 / UI-001 reads)', () => {
     const id = created.body.id as string;
 
     const again = await request(app)
-      .post('/api/tracked-products')
+      .post('/api/tracked-products').set(AUTH)
       .send({ storeProductId: '2626', selectedOption: 'o1' });
     expect(again.status).toBe(200);
     expect(again.body).toMatchObject({ id, deduped: true });
 
     const badOption = await request(app)
-      .post('/api/tracked-products')
+      .post('/api/tracked-products').set(AUTH)
       .send({ storeProductId: '2626', selectedOption: 'o9' });
     expect(badOption.status).toBe(400);
     expect(badOption.body.error).toBe('option_not_found');
@@ -159,7 +167,7 @@ describe('tracking + evidence (TRACK-001 / UI-001 reads)', () => {
   it('lists targets with latest validated + last scrape status', async () => {
     const { app } = setup();
     await request(app)
-      .post('/api/tracked-products')
+      .post('/api/tracked-products').set(AUTH)
       .send({ storeProductId: '2626', selectedOption: 'o1' });
     const res = await request(app).get('/api/tracked-products');
     expect(res.status).toBe(200);
@@ -174,7 +182,7 @@ describe('tracking + evidence (TRACK-001 / UI-001 reads)', () => {
   it('serves history, log, and manual rescrape', async () => {
     const { app } = setup();
     const created = await request(app)
-      .post('/api/tracked-products')
+      .post('/api/tracked-products').set(AUTH)
       .send({ storeProductId: '2626', selectedOption: 'o1' });
     const id = created.body.id as string;
 
@@ -186,24 +194,25 @@ describe('tracking + evidence (TRACK-001 / UI-001 reads)', () => {
     expect(log.status).toBe(200);
     expect(log.body.results[0]).toMatchObject({ outcome: 'success', attempt_number: 1 });
 
-    const rescrape = await request(app).post(`/api/tracked-products/${id}/scrape`);
+    const rescrape = await request(app).post(`/api/tracked-products/${id}/scrape`).set(AUTH);
     expect(rescrape.status).toBe(200);
     expect(rescrape.body).toMatchObject({ succeeded: 1, failed: 0 });
   });
 
   it('validates ids and reports missing targets on pause/untrack', async () => {
     const { app } = setup();
-    expect((await request(app).patch('/api/tracked-products/nope').send({ isActive: false })).status).toBe(400);
+    expect((await request(app).patch('/api/tracked-products/nope').set(AUTH).send({ isActive: false })).status).toBe(400);
     expect(
       (
         await request(app)
           .patch('/api/tracked-products/00000000-0000-4000-8000-000000000000')
+          .set(AUTH)
           .send({ isActive: false })
       ).status,
     ).toBe(404);
-    expect((await request(app).delete('/api/tracked-products/nope')).status).toBe(400);
+    expect((await request(app).delete('/api/tracked-products/nope').set(AUTH)).status).toBe(400);
     expect(
-      (await request(app).delete('/api/tracked-products/00000000-0000-4000-8000-000000000000'))
+      (await request(app).delete('/api/tracked-products/00000000-0000-4000-8000-000000000000').set(AUTH))
         .status,
     ).toBe(404);
   });
@@ -213,7 +222,7 @@ describe('scheduler entrypoint (SCHED-001)', () => {
   it('rejects unauthenticated triggers and runs the batch when authorized', async () => {
     const { app, db } = setup();
     await request(app)
-      .post('/api/tracked-products')
+      .post('/api/tracked-products').set(AUTH)
       .send({ storeProductId: '2626', selectedOption: 'o1' });
 
     expect((await request(app).post('/api/internal/scrape-all')).status).toBe(401);
@@ -256,7 +265,7 @@ describe('CSV export (EXPORT-001)', () => {
   it('downloads one row per attempt with the assignment column order', async () => {
     const { app } = setup();
     await request(app)
-      .post('/api/tracked-products')
+      .post('/api/tracked-products').set(AUTH)
       .send({ storeProductId: '2626', selectedOption: 'o1' });
     const res = await request(app).get('/api/export.csv');
     expect(res.status).toBe(200);
@@ -274,7 +283,7 @@ describe('bonus: multi-option one-run track (by-product)', () => {
   it('tracks + scrapes several options in a single run', async () => {
     const { app } = setup();
     const res = await request(app)
-      .post('/api/tracked-products/by-product')
+      .post('/api/tracked-products/by-product').set(AUTH)
       .send({ storeProductId: '2626', options: ['o1', 'o2'] });
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ succeeded: 2, failed: 0 });
@@ -288,14 +297,14 @@ describe('bonus: multi-option one-run track (by-product)', () => {
     expect(
       (
         await request(app)
-          .post('/api/tracked-products/by-product')
+          .post('/api/tracked-products/by-product').set(AUTH)
           .send({ storeProductId: '2626', options: ['o9'] })
       ).status,
     ).toBe(400);
     expect(
       (
         await request(app)
-          .post('/api/tracked-products/by-product')
+          .post('/api/tracked-products/by-product').set(AUTH)
           .send({ storeProductId: '2626', options: ['o1', 'o2', 'o3', 'o4', 'o5', 'o6', 'o7', 'o8', 'o9'] })
       ).status,
     ).toBe(400);
@@ -303,18 +312,19 @@ describe('bonus: multi-option one-run track (by-product)', () => {
   it('stores and updates per-product scrape intervals', async () => {
     const { app } = setup();
     const created = await request(app)
-      .post('/api/tracked-products')
+      .post('/api/tracked-products').set(AUTH)
       .send({ storeProductId: '2626', selectedOption: 'o1', scrapeIntervalHours: 6 });
     expect(created.status).toBe(201);
     const list = await request(app).get('/api/tracked-products');
     expect(list.body.results[0]).toMatchObject({ scrapeIntervalHours: 6 });
     const patched = await request(app)
       .patch(`/api/tracked-products/${created.body.id}`)
+      .set(AUTH)
       .send({ scrapeIntervalHours: 12 });
     expect(patched.status).toBe(200);
     expect(patched.body).toMatchObject({ scrapeIntervalHours: 12 });
     expect(
-      (await request(app).patch(`/api/tracked-products/${created.body.id}`).send({})).status,
+      (await request(app).patch(`/api/tracked-products/${created.body.id}`).set(AUTH).send({})).status,
     ).toBe(400);
   });
 });
@@ -323,7 +333,7 @@ describe('bonus: alerts + change detection', () => {
   it('serves empty alerts and change feed on fresh targets', async () => {
     const { app } = setup();
     await request(app)
-      .post('/api/tracked-products')
+      .post('/api/tracked-products').set(AUTH)
       .send({ storeProductId: '2626', selectedOption: 'o1' });
     const alerts = await request(app).get('/api/alerts');
     expect(alerts.status).toBe(200);
@@ -350,7 +360,7 @@ describe('bonus: alerts + change detection', () => {
     const db = createTestQueryable(createSchemaDb());
     const app = createApp({ db, storeFetch: stubStore, scrape: dropping });
     await request(app)
-      .post('/api/tracked-products')
+      .post('/api/tracked-products').set(AUTH)
       .send({ storeProductId: '2626', selectedOption: 'o1' });
     price = 50000; // ~20% drop
     const rows = await listActiveTrackedProducts(db);
@@ -368,6 +378,39 @@ describe('bonus: alerts + change detection', () => {
     expect(alerts.status).toBe(200);
     expect(alerts.body.count).toBe(1);
     expect(alerts.body.results[0]).toMatchObject({ type: 'price_drop', toPrice: 50000 });
+  });
+});
+
+describe('user auth on writes (Supabase Auth)', () => {
+  it('rejects writes without a session or with a bad token', async () => {
+    const { app } = setup();
+    expect(
+      (
+        await request(app)
+          .post('/api/tracked-products')
+          .send({ storeProductId: '2626', selectedOption: 'o1' })
+      ).status,
+    ).toBe(401);
+    expect(
+      (
+        await request(app)
+          .post('/api/tracked-products')
+          .set('Authorization', 'Bearer bogus')
+          .send({ storeProductId: '2626', selectedOption: 'o1' })
+      ).status,
+    ).toBe(401);
+    // Reads stay public: gradable dashboard without an account.
+    expect((await request(app).get('/api/tracked-products')).status).toBe(200);
+    expect((await request(app).get('/api/alerts')).status).toBe(200);
+  });
+
+  it('stays open when no verifier is configured (dev open mode)', async () => {
+    const db = createTestQueryable(createSchemaDb());
+    const open = createApp({ db, storeFetch: stubStore, scrape: scriptedSuccess });
+    const res = await request(open)
+      .post('/api/tracked-products')
+      .send({ storeProductId: '2626', selectedOption: 'o1' });
+    expect(res.status).toBe(201);
   });
 });
 

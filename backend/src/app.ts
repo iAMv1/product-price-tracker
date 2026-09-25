@@ -60,6 +60,7 @@ export function createApp(deps: AppDeps = {}) {
   if (deps.db !== undefined) app.locals.db = deps.db;
   if (deps.storeFetch !== undefined) app.locals.storeFetch = deps.storeFetch;
   if (deps.scrape !== undefined) app.locals.scrape = deps.scrape;
+  if (deps.authVerify !== undefined) app.locals.authVerify = deps.authVerify;
 
   app.use('/health', healthRouter);
   app.use('/api/internal', internalRouter);

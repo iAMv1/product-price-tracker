@@ -5,6 +5,7 @@ import type { FetchImpl } from '../scraper/store/catalog.js';
 import { STORE_BASE_URL } from '../scraper/store/constants.js';
 import type { ScrapeFn } from '../scraper/runner.js';
 import { scrapeProduct } from '../scraper/store/scrape.js';
+import { supabaseVerifier, type AuthVerify } from './auth.js';
 
 /**
  * Per-app dependency injection. Tests pass fakes; production omits them:
@@ -15,6 +16,11 @@ export interface AppDeps {
   db?: Queryable | null;
   storeFetch?: FetchImpl;
   scrape?: ScrapeFn;
+  /**
+   * Session verifier. Tests pass a stub; production resolves lazily from
+   * Supabase env (null = open mode). `undefined` means "resolve lazily".
+   */
+  authVerify?: AuthVerify | null;
 }
 
 export function readDeps(req: Request): Required<AppDeps> {
@@ -23,6 +29,7 @@ export function readDeps(req: Request): Required<AppDeps> {
     db: locals.db ?? null,
     storeFetch: locals.storeFetch ?? fetch,
     scrape: locals.scrape ?? scrapeProduct,
+    authVerify: locals.authVerify ?? supabaseVerifier(),
   };
 }
 

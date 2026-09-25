@@ -1,13 +1,26 @@
 /**
  * Single place where the browser talks to the backend. In development Vite
  * proxies these paths to the backend; in production VITE_API_BASE_URL points
- * at the Render deployment.
+ * at the Render deployment. Writes attach the Supabase session token when
+ * signed in; reads stay public so the dashboard is gradable without login.
  */
+import { supabase } from "../lib/supabase";
+
 const BASE_URL = import.meta.env['VITE_API_BASE_URL'] ?? '';
+
+async function authHeaders(): Promise<Record<string, string>> {
+  try {
+    const token = (await supabase?.auth.getSession())?.data.session?.access_token;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+}
 
 export interface IntegrationReadiness {
   database: boolean;
   schedulerAuth: boolean;
+  userAuth?: boolean;
 }
 
 export interface HealthResponse {
@@ -110,10 +123,21 @@ async function getJson<T>(path: string): Promise<T> {
 async function postJson<T>(path: string, body?: unknown): Promise<T> {
   const response = await fetch(`${BASE_URL}${path}`, {
     method: 'POST',
-    headers: { accept: 'application/json', 'Content-Type': 'application/json' },
+    headers: {
+      accept: 'application/json',
+      'Content-Type': 'application/json',
+      ...(await authHeaders()),
+    },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   return readJson<T>(response, path);
+}
+
+export async function authedFetch(path: string, init?: RequestInit): Promise<Response> {
+  return fetch(`${BASE_URL}${path}`, {
+    ...init,
+    headers: { accept: 'application/json', ...(await authHeaders()), ...init?.headers },
+  });
 }
 
 export function fetchHealth(): Promise<HealthResponse> {
@@ -153,15 +177,23 @@ export function trackProduct(
   });
 }
 
-export function updateInterval(id: string, scrapeIntervalHours: number): Promise<unknown> {
-  return fetch(`${BASE_URL}/api/tracked-products/${encodeURIComponent(id)}`, {
+export async function updateInterval(id: string, scrapeIntervalHours: number): Promise<unknown> {
+  const r = await authedFetch(`/api/tracked-products/${encodeURIComponent(id)}`, {
     method: 'PATCH',
-    headers: { accept: 'application/json', 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ scrapeIntervalHours }),
-  }).then((r) => {
-    if (!r.ok) throw new Error(`interval update failed with HTTP ${r.status}`);
-    return r.json() as Promise<unknown>;
   });
+  if (!r.ok) {
+    let message = `interval update failed with HTTP ${r.status}`;
+    try {
+      const body = (await r.json()) as { message?: string };
+      if (typeof body.message === 'string') message = body.message;
+    } catch {
+      /* non-JSON: keep status message */
+    }
+    throw new Error(message);
+  }
+  return r.json() as Promise<unknown>;
 }
 
 export function fetchHistory(id: string): Promise<HistoryEntry[]> {
