@@ -4,6 +4,7 @@ import {
   getAttemptLog,
   getHistory,
   getLatestValidated,
+  getTrackedProduct,
   listActiveTrackedProducts,
 } from '../persistence/repositories.js';
 import { rowToTarget, runAllTargets } from '../scraper/runner.js';
@@ -13,7 +14,7 @@ import {
   matchOption,
   parseStoreItem,
 } from '../scraper/store/catalog.js';
-import { productUrl, readDeps, resolveDb, routeParam, storeBaseUrl } from '../http/deps.js';
+import { productUrl, readDeps, requireDb, routeParam, storeBaseUrl } from '../http/deps.js';
 
 /**
  * Tracking intent + evidence reads (TRACK-001 / UI-001 reads).
@@ -25,11 +26,8 @@ import { productUrl, readDeps, resolveDb, routeParam, storeBaseUrl } from '../ht
 export const trackedRouter = Router();
 
 trackedRouter.get('/', async (req: Request, res: Response) => {
-  const db = await resolveDb(req);
-  if (db === null) {
-    res.status(503).json({ error: 'database_not_configured', message: 'DATABASE_URL is not set' });
-    return;
-  }
+  const db = await requireDb(req, res);
+  if (db === null) return;
   const rows = await listActiveTrackedProducts(db);
   const targets = await Promise.all(
     rows.map(async (row) => {
@@ -59,11 +57,8 @@ trackedRouter.get('/', async (req: Request, res: Response) => {
 });
 
 trackedRouter.post('/', async (req: Request, res: Response) => {
-  const db = await resolveDb(req);
-  if (db === null) {
-    res.status(503).json({ error: 'database_not_configured', message: 'DATABASE_URL is not set' });
-    return;
-  }
+  const db = await requireDb(req, res);
+  if (db === null) return;
   const body = (req.body ?? {}) as Record<string, unknown>;
   const storeProductId = typeof body['storeProductId'] === 'string' ? body['storeProductId'] : '';
   const selectedOption = typeof body['selectedOption'] === 'string' ? body['selectedOption'] : '';
@@ -103,9 +98,8 @@ trackedRouter.post('/', async (req: Request, res: Response) => {
       return;
     }
     productName = item.name;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    res.status(500).json({ error: 'handshake_drift', message });
+  } catch {
+    res.status(500).json({ error: 'handshake_drift', message: 'item changed shape unexpectedly' });
     return;
   }
 
@@ -160,9 +154,11 @@ trackedRouter.post('/', async (req: Request, res: Response) => {
 });
 
 trackedRouter.patch('/:id', async (req: Request, res: Response) => {
-  const db = await resolveDb(req);
-  if (db === null) {
-    res.status(503).json({ error: 'database_not_configured', message: 'DATABASE_URL is not set' });
+  const db = await requireDb(req, res);
+  if (db === null) return;
+  const id = routeParam(req, 'id');
+  if (!isUuid(id)) {
+    res.status(400).json({ error: 'bad_request', message: 'id must be a UUID' });
     return;
   }
   const body = (req.body ?? {}) as Record<string, unknown>;
@@ -170,31 +166,42 @@ trackedRouter.patch('/:id', async (req: Request, res: Response) => {
     res.status(400).json({ error: 'bad_request', message: 'isActive (boolean) is required' });
     return;
   }
-  await db.query('UPDATE tracked_products SET is_active = $1, updated_at = now() WHERE id = $2', [
-    body['isActive'],
-    routeParam(req, 'id'),
-  ]);
-  res.json({ id: routeParam(req, 'id'), isActive: body['isActive'] });
+  const updated = await db.query(
+    'UPDATE tracked_products SET is_active = $1, updated_at = now() WHERE id = $2',
+    [body['isActive'], id],
+  );
+  if ((updated.rowCount ?? 0) === 0) {
+    res.status(404).json({ error: 'not_found', message: 'tracked product not found' });
+    return;
+  }
+  res.json({ id, isActive: body['isActive'] });
 });
 
 trackedRouter.delete('/:id', async (req: Request, res: Response) => {
-  const db = await resolveDb(req);
-  if (db === null) {
-    res.status(503).json({ error: 'database_not_configured', message: 'DATABASE_URL is not set' });
+  const db = await requireDb(req, res);
+  if (db === null) return;
+  const id = routeParam(req, 'id');
+  if (!isUuid(id)) {
+    res.status(400).json({ error: 'bad_request', message: 'id must be a UUID' });
     return;
   }
   // Hard delete cascades to attempts + history (schema ON DELETE CASCADE).
   // Explicit user choice; the audit trail for REMAINING targets is untouched.
-  await db.query('DELETE FROM tracked_products WHERE id = $1', [routeParam(req, 'id')]);
+  const deleted = await db.query('DELETE FROM tracked_products WHERE id = $1', [id]);
+  if ((deleted.rowCount ?? 0) === 0) {
+    res.status(404).json({ error: 'not_found', message: 'tracked product not found' });
+    return;
+  }
   res.status(204).end();
 });
 
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
 trackedRouter.get('/:id/history', async (req: Request, res: Response) => {
-  const db = await resolveDb(req);
-  if (db === null) {
-    res.status(503).json({ error: 'database_not_configured', message: 'DATABASE_URL is not set' });
-    return;
-  }
+  const db = await requireDb(req, res);
+  if (db === null) return;
   const limit = clampLimit(req.query['limit']);
   res.json({
     results: await getHistory(db, routeParam(req, 'id'), limit),
@@ -202,11 +209,8 @@ trackedRouter.get('/:id/history', async (req: Request, res: Response) => {
 });
 
 trackedRouter.get('/:id/scrape-log', async (req: Request, res: Response) => {
-  const db = await resolveDb(req);
-  if (db === null) {
-    res.status(503).json({ error: 'database_not_configured', message: 'DATABASE_URL is not set' });
-    return;
-  }
+  const db = await requireDb(req, res);
+  if (db === null) return;
   const limit = clampLimit(req.query['limit']);
   res.json({
     results: await getAttemptLog(db, routeParam(req, 'id'), limit),
@@ -214,30 +218,17 @@ trackedRouter.get('/:id/scrape-log', async (req: Request, res: Response) => {
 });
 
 trackedRouter.post('/:id/scrape', async (req: Request, res: Response) => {
-  const db = await resolveDb(req);
-  if (db === null) {
-    res.status(503).json({ error: 'database_not_configured', message: 'DATABASE_URL is not set' });
-    return;
-  }
+  const db = await requireDb(req, res);
+  if (db === null) return;
   const { scrape } = readDeps(req);
-  const found = await db.query(
-    'SELECT id, store_product_id, product_name, selected_option, product_url, is_active FROM tracked_products WHERE id = $1',
-    [routeParam(req, 'id')],
-  );
-  const [row] = found.rows as Array<{
-    id: string;
-    store_product_id: string;
-    product_name: string;
-    selected_option: string;
-    product_url: string;
-  }>;
-  if (row === undefined) {
+  const row = await getTrackedProduct(db, routeParam(req, 'id'));
+  if (row === null) {
     res.status(404).json({ error: 'not_found', message: 'tracked product not found' });
     return;
   }
   const summary = await runAllTargets(db, {
     triggerType: 'manual',
-    targets: [rowToTarget({ ...row, is_active: true })],
+    targets: [rowToTarget(row)],
     scrape,
   });
   res.json(summary);
@@ -246,5 +237,5 @@ trackedRouter.post('/:id/scrape', async (req: Request, res: Response) => {
 function clampLimit(value: unknown): number {
   const n = typeof value === 'string' ? Number(value) : NaN;
   if (!Number.isInteger(n) || n <= 0) return 100;
-  return Math.min(n, 1000);
+  return Math.min(n, 200);
 }

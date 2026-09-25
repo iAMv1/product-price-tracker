@@ -40,7 +40,7 @@ export function TargetCard({
   onUntracked,
 }: {
   target: TrackedTarget;
-  onChanged: () => void;
+  onChanged: () => Promise<void>;
   onUntracked: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -67,7 +67,7 @@ export function TargetCard({
     setRescraping(true);
     try {
       await rescrapeTarget(target.id);
-      onChanged();
+      await onChanged();
       if (expanded) {
         const [h, l] = await Promise.all([fetchHistory(target.id), fetchScrapeLog(target.id)]);
         setHistory(h);
@@ -200,7 +200,9 @@ export function TargetCard({
         </button>
         <button
           type="button"
-          onClick={() => onUntracked(target.id)}
+          onClick={() => {
+            void onUntracked(target.id);
+          }}
           className="h-9 touch-manipulation rounded-full px-4 text-[13px] font-medium text-danger outline-hidden transition-[scale,background-color] duration-150 ease-out select-none hover:bg-danger/10 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground active:scale-[0.96] motion-reduce:transition-[background-color]"
         >
           Untrack

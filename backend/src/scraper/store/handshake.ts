@@ -45,9 +45,7 @@ function drift(message: string): HandshakeFailure {
   return { errorCode: 'handshake_drift', errorMessage: message, transient: false };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
+import { errMsg, isRecord } from '../../http/guards.js';
 
 interface Challenge {
   salt: string;
@@ -165,14 +163,14 @@ export async function acquireQuote(
   try {
     wasmOut = await wasmImpl(challenge.wasm, seed);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = errMsg(error);
     return { ok: false, failure: drift(`challenge wasm failed: ${message}`) };
   }
   let nonce: number;
   try {
     nonce = solveProofOfWork(challenge.salt, challenge.difficulty);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = errMsg(error);
     return {
       ok: false,
       failure: {
@@ -252,7 +250,7 @@ export async function acquireQuote(
   try {
     payload = decodeQuotePayload(quoteJson['blob'], verified.pass);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = errMsg(error);
     return { ok: false, failure: drift(`quote blob undecodable: ${message}`) };
   }
 

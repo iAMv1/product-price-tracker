@@ -1,4 +1,4 @@
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import type { Queryable } from '../persistence/db.js';
 import { getPool } from '../persistence/db.js';
 import type { FetchImpl } from '../scraper/store/catalog.js';
@@ -31,6 +31,20 @@ export async function resolveDb(req: Request): Promise<Queryable | null> {
   const locals = req.app.locals as Partial<AppDeps> & { __dbResolved?: boolean };
   if (locals.db !== undefined) return locals.db;
   return getPool();
+}
+
+/** 503 when DATABASE_URL is not configured. Returns null after responding. */
+export async function requireDb(
+  req: Request,
+  res: Response,
+): Promise<Queryable | null> {
+  const db = await resolveDb(req);
+  if (db === null) {
+    res
+      .status(503)
+      .json({ error: 'database_not_configured', message: 'DATABASE_URL is not set' });
+  }
+  return db;
 }
 
 export function storeBaseUrl(): string {

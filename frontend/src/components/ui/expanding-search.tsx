@@ -65,8 +65,7 @@ export function ExpandingSearch({
 
   useEffect(() => {
     if (!shortcut) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== shortcut || open || e.defaultPrevented) return;
+    const onKey = (e: KeyboardEvent) => {      if (e.key !== shortcut || open || e.defaultPrevented) return;
       if (e.metaKey || e.ctrlKey || e.altKey || isEditable(e.target)) return;
       if (rootRef.current?.closest("[inert]")) return;
       e.preventDefault();
@@ -74,7 +73,7 @@ export function ExpandingSearch({
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  });
+  }, [shortcut, open]);
 
   const widthTransition = reduceMotion ? INSTANT : open ? EXPAND : COLLAPSE;
   const hiddenIcon = reduceMotion

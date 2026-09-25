@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import {
   useCallback,
   useId,
@@ -113,6 +114,8 @@ export function RelativeTime({
   const [open, setOpen] = useState(false);
   const [instant, setInstant] = useState(false);
   const openTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => () => clearTimeout(openTimer.current), []);
 
   const show = (delayed: boolean) => {
     clearTimeout(openTimer.current);
