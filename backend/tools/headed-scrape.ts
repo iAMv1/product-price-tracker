@@ -24,7 +24,9 @@ for (let i = 0; i + 1 < args.length; i += 2) {
   if (id !== undefined && opt !== undefined) pairs.push([id, opt]);
 }
 if (pairs.length === 0) {
-  pairs.push(['2626', 'o1'], ['2229', 'o2'], ['2092', 'o2']);
+  console.error('usage: npx tsx tools/headed-scrape.ts <storeProductId> <selectedOption> [...]');
+  console.error('example: npx tsx tools/headed-scrape.ts 2626 o1 2229 o2 2092 o2');
+  process.exit(1);
 }
 
 const headless = process.env['HEADLESS'] === '1';
