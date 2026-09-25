@@ -79,7 +79,7 @@ export default function Landing() {
   const heroOpacity = useTransform(scrollYProgress, [0, 0.9], [1, 0]);
 
   return (
-    <div>
+    <div id="main" tabIndex={-1} className="outline-none">
       <header className="sticky top-0 z-10 border-b border-border bg-background/90 backdrop-blur">
         <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
           <a href="#/" className="text-[15px] font-semibold tracking-tight">
