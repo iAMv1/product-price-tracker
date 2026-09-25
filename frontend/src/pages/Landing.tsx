@@ -13,10 +13,10 @@ function Reveal({ children, delay = 0 }: { children: React.ReactNode; delay?: nu
   const reduce = useReducedMotion();
   return (
     <motion.div
-      initial={reduce ? false : { opacity: 0, y: 28 }}
+      initial={reduce ? false : { opacity: 0, y: 16 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-80px" }}
-      transition={{ duration: 0.7, delay, ease: [0.23, 1, 0.32, 1] }}
+      transition={{ duration: 0.32, delay, ease: [0.23, 1, 0.32, 1] }}
     >
       {children}
     </motion.div>
@@ -153,18 +153,18 @@ export default function Landing() {
           <Reveal>
             <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">The instrument panel</h2>
           </Reveal>
-          <div className="mt-8 grid gap-4 sm:grid-cols-2">
+          <div className="mt-8 grid gap-4 sm:grid-cols-3">
             {[
-              { t: "Validated observations only", d: "Price and stock land in history together, atomically — or not at all." },
-              { t: "Every attempt logged", d: "Success, retried, failed. Attempt number, timestamp, error code." },
-              { t: "CSV that reconciles", d: "One row per attempt, exact column order, failures included with empty values." },
-              { t: "Headed and watchable", d: "Run the scraper in a visible browser and watch it handle slow responses." },
+              { t: "Validated observations only", d: "Price and stock land in history together, atomically — or not at all.", span: "sm:col-span-2" },
+              { t: "Every attempt logged", d: "Success, retried, failed. Attempt number, timestamp, error code.", span: "" },
+              { t: "CSV that reconciles", d: "One row per attempt, exact column order, failures included with empty values.", span: "" },
+              { t: "Headed and watchable", d: "Run the scraper in a visible browser and watch it handle slow responses.", span: "sm:col-span-2" },
             ].map((f, i) => (
               <Reveal key={f.t} delay={i * 0.06}>
-                <div className="rounded-2xl border border-border bg-surface p-6 shadow-raised">
+                <div className={`rounded-2xl border border-border bg-surface p-6 shadow-raised ${f.span}`}>
                   <p className="font-mono text-[13px] text-marker">0{i + 1}</p>
                   <h3 className="mt-2 text-lg font-semibold">{f.t}</h3>
-                  <p className="mt-1 text-sm leading-relaxed text-muted">{f.d}</p>
+                  <p className="mt-1 max-w-md text-sm leading-relaxed text-muted">{f.d}</p>
                 </div>
               </Reveal>
             ))}
