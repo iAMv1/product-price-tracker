@@ -1,0 +1,28 @@
+node_modules/
+dist/
+build/
+coverage/
+
+.env
+.env.*
+!.env.example
+
+*.log
+npm-debug.log*
+*.zip
+
+.DS_Store
+.idea/
+.vscode/
+*.tsbuildinfo
+
+# Internal agent working docs — live on disk, never pushed to the public repo.
+# The submission is code + schema + README + deploy config only.
+/SOUL.md
+/harness/
+/knowledge/
+/project/
+/artifacts/
+/DEPLOY.md
+/DESIGN_NOTE_TEMPLATE.md
+/ops-deploy-wizard.sh
