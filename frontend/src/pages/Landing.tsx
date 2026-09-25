@@ -46,8 +46,8 @@ function ProofTicker({ targets }: { targets: TrackedTarget[] }) {
   if (targets.length === 0) return null;
   const items = [...targets, ...targets];
   return (
-    <div className="flex border-y border-border bg-surface" aria-label="Live prices">
-      <div className="flex shrink-0 items-center gap-2 border-r border-border px-4 text-[12px] font-semibold tracking-[0.18em] text-marker uppercase sm:px-5">
+    <div className="relative flex overflow-hidden border-y border-border bg-surface" aria-label="Live prices">
+      <div className="relative z-10 flex shrink-0 items-center gap-2 border-r border-border bg-surface px-4 text-[12px] font-semibold tracking-[0.18em] text-marker uppercase sm:px-5">
         <span aria-hidden className="size-1.5 rounded-full bg-marker motion-safe:animate-pulse" />
         Live
       </div>
