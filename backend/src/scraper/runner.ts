@@ -24,6 +24,7 @@ export interface TargetInput {
   productName: string;
   selectedOption: string;
   productUrl: string;
+  scrapeIntervalHours?: number;
 }
 
 export function rowToTarget(row: TrackedProductRow): TargetInput {
@@ -33,6 +34,8 @@ export function rowToTarget(row: TrackedProductRow): TargetInput {
     productName: row.product_name,
     selectedOption: row.selected_option,
     productUrl: row.product_url,
+    scrapeIntervalHours:
+      typeof row.scrape_interval_hours === 'number' ? row.scrape_interval_hours : 2,
   };
 }
 

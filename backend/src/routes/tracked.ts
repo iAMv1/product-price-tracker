@@ -1,11 +1,13 @@
 import { Router, type Request, type Response } from 'express';
 import {
   createTrackedProduct,
+  clampIntervalHours,
   getAttemptLog,
   getHistory,
   getLatestValidated,
   getTrackedProduct,
   listActiveTrackedProducts,
+  updateTrackedInterval,
 } from '../persistence/repositories.js';
 import { rowToTarget, runAllTargets } from '../scraper/runner.js';
 import {
@@ -40,6 +42,8 @@ trackedRouter.get('/', async (req: Request, res: Response) => {
         productName: row.product_name,
         selectedOption: row.selected_option,
         productUrl: row.product_url,
+        scrapeIntervalHours:
+          typeof row.scrape_interval_hours === 'number' ? row.scrape_interval_hours : 2,
         latest: latest
           ? { price: latest.price, stock: latest.stock, observedAt: latest.observed_at }
           : null,
@@ -104,6 +108,9 @@ trackedRouter.post('/', async (req: Request, res: Response) => {
   }
 
   const url = productUrl(storeProductId);
+  const interval = clampIntervalHours(
+    typeof body['scrapeIntervalHours'] === 'number' ? body['scrapeIntervalHours'] : 2,
+  );
   let row;
   try {
     row = await createTrackedProduct(db, {
@@ -111,6 +118,7 @@ trackedRouter.post('/', async (req: Request, res: Response) => {
       productName,
       selectedOption,
       productUrl: url,
+      scrapeIntervalHours: interval,
     });
   } catch {
     // Duplicate identity: idempotent re-track. Return the existing target.
@@ -162,19 +170,37 @@ trackedRouter.patch('/:id', async (req: Request, res: Response) => {
     return;
   }
   const body = (req.body ?? {}) as Record<string, unknown>;
-  if (typeof body['isActive'] !== 'boolean') {
-    res.status(400).json({ error: 'bad_request', message: 'isActive (boolean) is required' });
+  const hasActive = typeof body['isActive'] === 'boolean';
+  const hasInterval =
+    typeof body['scrapeIntervalHours'] === 'number' &&
+    Number.isInteger(body['scrapeIntervalHours']);
+  if (!hasActive && !hasInterval) {
+    res.status(400).json({
+      error: 'bad_request',
+      message: 'isActive (boolean) and/or scrapeIntervalHours (1-168) required',
+    });
     return;
   }
-  const updated = await db.query(
-    'UPDATE tracked_products SET is_active = $1, updated_at = now() WHERE id = $2',
-    [body['isActive'], id],
-  );
-  if ((updated.rowCount ?? 0) === 0) {
-    res.status(404).json({ error: 'not_found', message: 'tracked product not found' });
-    return;
+  if (hasActive) {
+    const updated = await db.query(
+      'UPDATE tracked_products SET is_active = $1, updated_at = now() WHERE id = $2',
+      [body['isActive'], id],
+    );
+    if ((updated.rowCount ?? 0) === 0) {
+      res.status(404).json({ error: 'not_found', message: 'tracked product not found' });
+      return;
+    }
   }
-  res.json({ id, isActive: body['isActive'] });
+  if (hasInterval) {
+    const hours = clampIntervalHours(body['scrapeIntervalHours']);
+    const ok = await updateTrackedInterval(db, id, hours);
+    if (!ok) {
+      res.status(404).json({ error: 'not_found', message: 'tracked product not found' });
+      return;
+    }
+  }
+  const current = await getTrackedProduct(db, id);
+  res.json({ id, isActive: current?.is_active ?? body['isActive'], scrapeIntervalHours: current?.scrape_interval_hours ?? 2 });
 });
 
 trackedRouter.delete('/:id', async (req: Request, res: Response) => {

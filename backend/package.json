@@ -13,7 +13,8 @@
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "headed:scrape": "tsx tools/headed-scrape.ts"
   },
   "dependencies": {
     "@types/cors": "^2.8.19",

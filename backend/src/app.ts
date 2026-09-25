@@ -4,6 +4,9 @@ import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
 import { env } from './config/env.js';
 import type { AppDeps } from './http/deps.js';
+import { alertsRouter } from './routes/alerts.js';
+import { byProductRouter } from './routes/byproduct.js';
+import { changeRouter } from './routes/change.js';
 import { exportRouter } from './routes/export.js';
 import { healthRouter } from './routes/health.js';
 import { internalRouter } from './routes/internal.js';
@@ -62,7 +65,10 @@ export function createApp(deps: AppDeps = {}) {
   app.use('/api/internal', internalRouter);
   app.use('/api', publicApiLimiter);
   app.use('/api/products', productsRouter);
+  app.use('/api/tracked-products', byProductRouter);
   app.use('/api/tracked-products', trackedRouter);
+  app.use('/api', changeRouter);
+  app.use('/api', alertsRouter);
   app.use('/api', exportRouter);
 
   app.use(notFound);

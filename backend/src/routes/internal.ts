@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
 import { env } from '../config/env.js';
-import { listActiveTrackedProducts } from '../persistence/repositories.js';
+import { getAttemptLog, listActiveTrackedProducts } from '../persistence/repositories.js';
 import { rowToTarget, runAllTargets } from '../scraper/runner.js';
 import { readDeps, requireDb } from '../http/deps.js';
 
@@ -32,10 +32,26 @@ internalRouter.post('/scrape-all', async (req: Request, res: Response) => {
   if (db === null) return;
   const { scrape } = readDeps(req);
   const rows = await listActiveTrackedProducts(db);
+  // Per-product frequency (bonus): skip targets scraped more recently than
+  // their interval. Never scraped => always due. Keeps the 2h default while
+  // honoring custom cadences without extra cron jobs.
+  const due = [];
+  let skipped = 0;
+  for (const row of rows) {
+    const interval =
+      typeof row.scrape_interval_hours === 'number' ? row.scrape_interval_hours : 2;
+    const last = await getAttemptLog(db, row.id, 1);
+    const lastAt = last[0]?.attempted_at ? Date.parse(last[0].attempted_at) : NaN;
+    if (Number.isFinite(lastAt) && Date.now() - lastAt < interval * 3600 * 1000) {
+      skipped += 1;
+      continue;
+    }
+    due.push(rowToTarget(row));
+  }
   const summary = await runAllTargets(db, {
     triggerType: 'scheduled',
-    targets: rows.map(rowToTarget),
+    targets: due,
     scrape,
   });
-  res.json(summary);
+  res.json({ ...summary, skipped });
 });

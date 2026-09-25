@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS tracked_products (
   selected_option TEXT NOT NULL,
   product_url TEXT NOT NULL,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  scrape_interval_hours INTEGER NOT NULL DEFAULT 2
+    CONSTRAINT tracked_products_interval_check CHECK (scrape_interval_hours BETWEEN 1 AND 168),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT tracked_products_identity_unique

@@ -14,6 +14,7 @@ export interface TrackedProductRow {
   selected_option: string;
   product_url: string;
   is_active: boolean;
+  scrape_interval_hours: number;
 }
 
 export interface ScrapeRunRow {
@@ -78,22 +79,42 @@ export async function createTrackedProduct(
     productName: string;
     selectedOption: string;
     productUrl: string;
+    scrapeIntervalHours?: number;
   },
 ): Promise<TrackedProductRow> {
+  const interval = clampIntervalHours(input.scrapeIntervalHours);
   const result = await db.query(
-    `INSERT INTO tracked_products (id, store_product_id, product_name, selected_option, product_url)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING id, store_product_id, product_name, selected_option, product_url, is_active`,
-    [randomUUID(), input.storeProductId, input.productName, input.selectedOption, input.productUrl],
+    `INSERT INTO tracked_products (id, store_product_id, product_name, selected_option, product_url, scrape_interval_hours)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING id, store_product_id, product_name, selected_option, product_url, is_active, scrape_interval_hours`,
+    [randomUUID(), input.storeProductId, input.productName, input.selectedOption, input.productUrl, interval],
   );
   return one<TrackedProductRow>(result);
+}
+
+export function clampIntervalHours(value: unknown): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isInteger(n) || n < 1 || n > 168) return 2;
+  return n;
+}
+
+export async function updateTrackedInterval(
+  db: Queryable,
+  id: string,
+  hours: number,
+): Promise<boolean> {
+  const result = await db.query(
+    'UPDATE tracked_products SET scrape_interval_hours = $1, updated_at = now() WHERE id = $2',
+    [clampIntervalHours(hours), id],
+  );
+  return (result.rowCount ?? 0) > 0;
 }
 
 export async function listActiveTrackedProducts(
   db: Queryable,
 ): Promise<TrackedProductRow[]> {
   const result = await db.query(
-    `SELECT id, store_product_id, product_name, selected_option, product_url, is_active
+    `SELECT id, store_product_id, product_name, selected_option, product_url, is_active, scrape_interval_hours
      FROM tracked_products WHERE is_active = TRUE ORDER BY created_at`,
   );
   return rows<TrackedProductRow>(result);
@@ -209,7 +230,7 @@ export async function getTrackedProduct(
   id: string,
 ): Promise<TrackedProductRow | null> {
   const result = await db.query(
-    `SELECT id, store_product_id, product_name, selected_option, product_url, is_active
+    `SELECT id, store_product_id, product_name, selected_option, product_url, is_active, scrape_interval_hours
      FROM tracked_products WHERE id = $1`,
     [id],
   );
@@ -224,6 +245,7 @@ export async function getTrackedProduct(
   ) {
     throw new Error('tracked product row failed validation');
   }
+  const interval = typeof row['scrape_interval_hours'] === 'number' ? row['scrape_interval_hours'] : 2;
   return {
     id: row['id'],
     store_product_id: row['store_product_id'],
@@ -231,6 +253,7 @@ export async function getTrackedProduct(
     selected_option: row['selected_option'],
     product_url: row['product_url'],
     is_active: row['is_active'] === true,
+    scrape_interval_hours: interval,
   };
 }
 
