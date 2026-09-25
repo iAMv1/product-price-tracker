@@ -104,13 +104,51 @@ same-origin and CORS only matters in production.
 The backend refuses to start in production when `DATABASE_URL` or `CRON_SECRET` is missing.
 `GET /health` reports which integrations are configured without ever echoing a credential.
 
+## Live deployment
+
+| Layer | URL |
+|---|---|
+| Dashboard (Vercel) | https://product-price-tracker-ochre.vercel.app |
+| API (Render) | https://ppt-backend-lyiv.onrender.com |
+| Database | Supabase PostgreSQL (pooler, `ap-northeast-2`) |
+| Scheduler | cron-job.org, Custom `0 */2 * * *`, POST `/api/internal/scrape-all` with `Authorization: Bearer <CRON_SECRET>` |
+
+## Scraping schedule
+
+- External cron POSTs `/api/internal/scrape-all` every 2 hours (12 runs/day).
+- No in-process loop anywhere: free-tier instances may sleep between invocations.
+- Each invocation scrapes every active target once to completion (max 3 attempts,
+  backoff+jitter between transient failures), then writes the run summary.
+- Per-product frequency (bonus): each target carries `scrape_interval_hours`
+  (default 2, range 1–168, editable on its card). Targets scraped more recently
+  than their interval are skipped honestly (`skipped` count in the response).
+- Manual triggers: `Scrape now` per card, `POST /api/tracked-products/:id/scrape`,
+  and multi-option `POST /api/tracked-products/by-product`.
+
+## Headed observable run
+
+```bash
+cd backend
+npx playwright install chromium   # local only
+npm run headed:scrape             # opens headed Chromium + runs real scraper verbosely
+```
+
+Full recording script: `backend/tools/HEADED_RECORDING.md`.
+
+## Bonus features (all six)
+
+| Bonus | Where |
+|---|---|
+| Price-drop / back-in-stock alerts (in-app badges + banner; SendGrid hook optional via `SENDGRID_API_KEY`/`ALERT_TO`) | `GET /api/alerts`, dashboard Alerts section |
+| Multi-product overview + extra info (counts, avg price, brand/category in search, option axis in picker) | Dashboard Overview section |
+| Change detection (structure-drift flags from terminal error codes) | `GET /api/change-events`, dashboard watch banner |
+| Configurable scrape frequency per product (1–168h, scheduler respects it) | `scrape_interval_hours`, card control |
+| Multi-option scrape in one run | `POST /api/tracked-products/by-product`, picker checkboxes |
+| CI/CD | `.github/workflows/ci.yml` (backend typecheck+test+build, frontend typecheck+build) |
+
 ## Status
 
-Phase 0 of `project/IMPLEMENTATION_PLAN.md` is complete: both applications build, typecheck,
-start, and the frontend reaches the backend. Evidence is in `knowledge/VERIFICATION_LOG.md`.
-
-Phase 1 — storefront discovery — is in progress. Findings so far, recorded in
-`knowledge/OBSERVATIONS.md`, show the mock store is a **client-rendered SPA with no
-server-rendered product markup**, which means plain HTTP + HTML parsing cannot read price or
-stock from this storefront. The strategy decision is deliberately still open until the SPA's
-data source is identified.
+Production live: Render backend (`database:true`), Vercel dashboard, Supabase
+schema (4 tables + 2 views) seeded with 3 tracked targets carrying real
+scrapes; CSV export verified with honest retried rows. cron-job.org job fires
+every 2 hours; headed recording + submission form close out delivery.

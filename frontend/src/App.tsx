@@ -6,11 +6,16 @@ import { ThemeToggle } from "./components/ui/theme-toggle";
 import {
   ApiError,
   exportCsvUrl,
+  fetchAlerts,
+  fetchChangeEvents,
   fetchHealth,
   fetchProduct,
   listTracked,
   searchProducts,
+  trackByProduct,
   trackProduct,
+  type AlertItem,
+  type ChangeEvent,
   type HealthResponse,
   type ProductDetail,
   type SearchHit,
@@ -39,6 +44,11 @@ export default function App() {
   const [trackError, setTrackError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [exportStatus, setExportStatus] = useState<ExportStatus>("idle");
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [changes, setChanges] = useState<ChangeEvent[]>([]);
+  const [pickedMulti, setPickedMulti] = useState<string[]>([]);
+  const [bulkTracking, setBulkTracking] = useState(false);
+  const [newInterval, setNewInterval] = useState(2);
   const resetExport = useCallback(() => setExportStatus("idle"), []);
 
   const refreshTargets = useCallback(async () => {
@@ -47,6 +57,13 @@ export default function App() {
       setTargetsError(null);
     } catch (error) {
       setTargetsError(error instanceof Error ? error.message : "Unknown error");
+    }
+    try {
+      const [a, c] = await Promise.all([fetchAlerts(), fetchChangeEvents()]);
+      setAlerts(a);
+      setChanges(c);
+    } catch {
+      // Alerts/change feed is bonus UX: dashboard works without it.
     }
   }, []);
 
@@ -58,6 +75,14 @@ export default function App() {
         if (!cancelled) {
           setBoot({ kind: "ready", health });
           setTargets(list);
+          Promise.all([fetchAlerts(), fetchChangeEvents()])
+            .then(([a, c]) => {
+              if (!cancelled) {
+                setAlerts(a);
+                setChanges(c);
+              }
+            })
+            .catch(() => {});
         }
       } catch (error: unknown) {
         if (cancelled) return;
@@ -112,13 +137,37 @@ export default function App() {
   async function pickProduct(hit: SearchHit) {
     setDetailError(null);
     setPickedOption("");
+    setPickedMulti([]);
     try {
       const detail = await fetchProduct(hit.storeProductId);
       setPicked(detail);
       setPickedOption(detail.options[0]?.id ?? "");
+      setPickedMulti(detail.options[0]?.id ? [detail.options[0].id] : []);
     } catch (error) {
       setPicked(null);
       setDetailError(error instanceof Error ? error.message : "Unknown error");
+    }
+  }
+
+  async function trackSelectedOptions() {
+    if (picked === null || pickedMulti.length === 0 || pickedMulti.length > 8) return;
+    setTracking(true);
+    setTrackError(null);
+    setNotice(null);
+    try {
+      const summary = await trackByProduct(picked.storeProductId, pickedMulti, newInterval);
+      setNotice(
+        `Tracking ${pickedMulti.length} option${pickedMulti.length === 1 ? "" : "s"} of ${picked.name} in one run: ${summary.succeeded} succeeded, ${summary.failed} failed.`,
+      );
+      setPicked(null);
+      setPickedMulti([]);
+      setHits(null);
+      await refreshTargets();
+    } catch (error) {
+      setTrackError(error instanceof Error ? error.message : "Unknown error");
+    } finally {
+      setTracking(false);
+      setBulkTracking(false);
     }
   }
 
@@ -128,7 +177,7 @@ export default function App() {
     setTrackError(null);
     setNotice(null);
     try {
-      const result = await trackProduct(picked.storeProductId, pickedOption);
+      const result = await trackProduct(picked.storeProductId, pickedOption, newInterval);
       setNotice(
         result.deduped
           ? `Already tracking ${result.productName} (${result.selectedOption}).`
@@ -222,6 +271,57 @@ export default function App() {
             </p>
           )}
 
+          <section aria-label="Overview" className="mt-6 rounded-2xl border border-border bg-surface p-4 shadow-raised">
+            <h2 className="text-[15px] font-semibold text-foreground">Overview</h2>
+            <p className="mt-1 text-[13px] text-muted tabular-nums">
+              {targets.length} tracked ·{" "}
+              {targets.filter((t) => t.latest !== null).length} with validated price ·{" "}
+              {targets.filter((t) => t.lastScrape?.outcome === "failed").length} failed last scrape ·{" "}
+              {alerts.length} active alert{alerts.length === 1 ? "" : "s"}
+              {(() => {
+                const prices = targets
+                  .map((t) => t.latest?.price)
+                  .filter((p): p is number => typeof p === "number");
+                if (prices.length === 0) return "";
+                const avg = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length);
+                return ` · avg ₹${avg}`;
+              })()}
+            </p>
+          </section>
+
+          {alerts.length > 0 && (
+            <section aria-label="Alerts" className="mt-4 rounded-2xl border border-border bg-surface p-4 shadow-raised">
+              <h2 className="text-[15px] font-semibold text-foreground">Alerts</h2>
+              <ul className="mt-2 grid gap-1.5 text-[13px]">
+                {alerts.map((a, i) => (
+                  <li key={`${a.trackedProductId}-${a.type}-${i}`} className="text-foreground">
+                    <span className="font-semibold">
+                      {a.type === "price_drop"
+                        ? `Price drop ${a.dropPct}%`
+                        : a.type === "back_in_stock"
+                          ? "Back in stock"
+                          : "Scrape failed"}
+                    </span>{" "}
+                    <span className="text-muted tabular-nums">
+                      {a.productName} ({a.selectedOption})
+                      {a.type === "price_drop" ? ` ₹${a.fromPrice} → ₹${a.toPrice}` : ""}
+                      {a.type === "back_in_stock" ? ` stock ${a.stock}` : ""}
+                      {a.type === "scrape_failed" ? ` ${a.errorCode ?? ""}` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {changes.length > 0 && (
+            <p role="alert" className="mt-4 rounded-2xl bg-danger/10 px-4 py-3 text-[13px] font-medium text-danger">
+              Store structure watch: {changes.length} structure flag
+              {changes.length === 1 ? "" : "s"} ({changes.slice(0, 3).map((c) => c.error_code).join(", ")}
+              ). Selectors may have drifted — check scrape log.
+            </p>
+          )}
+
           <section aria-label="Search and track" className="mt-8">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-[15px] font-semibold text-foreground">Find a product</h2>
@@ -292,6 +392,48 @@ export default function App() {
                     ))}
                   </select>
                 </label>
+                <fieldset className="mt-3">
+                  <legend className="text-sm font-medium text-foreground">
+                    Options for one-run multi scrape (max 8)
+                  </legend>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {picked.options.map((option) => {
+                      const checked = pickedMulti.includes(option.id);
+                      return (
+                        <label
+                          key={option.id}
+                          className="flex h-9 cursor-pointer touch-manipulation items-center gap-1.5 rounded-full border border-border px-3 text-[13px] text-foreground select-none has-checked:border-foreground has-checked:bg-foreground/10"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              setPickedMulti((prev) =>
+                                prev.includes(option.id)
+                                  ? prev.filter((id) => id !== option.id)
+                                  : [...prev, option.id].slice(0, 8),
+                              )
+                            }
+                            className="h-4 w-4 accent-current"
+                          />
+                          {option.id}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+                <label className="mt-3 flex items-center gap-2 text-sm text-foreground">
+                  Scrape every
+                  <input
+                    type="number"
+                    min={1}
+                    max={168}
+                    value={newInterval}
+                    onChange={(e) => setNewInterval(Math.min(168, Math.max(1, Math.round(Number(e.target.value) || 2))))}
+                    className="h-9 w-20 rounded-xl border border-border bg-background px-2 tabular-nums"
+                  />
+                  hour(s)
+                </label>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -300,6 +442,17 @@ export default function App() {
                     className="h-10 touch-manipulation rounded-full bg-foreground px-5 text-sm font-medium text-background outline-hidden transition-[scale,opacity] duration-150 ease-out select-none hover:opacity-90 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-foreground active:scale-[0.96] motion-reduce:transition-[opacity] disabled:opacity-50"
                   >
                     {tracking ? "Tracking…" : "Track this option"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBulkTracking(true);
+                      void trackSelectedOptions();
+                    }}
+                    disabled={tracking || pickedMulti.length === 0 || pickedMulti.length > 8}
+                    className="h-10 touch-manipulation rounded-full border border-border px-5 text-sm font-medium text-foreground outline-hidden transition-[scale,background-color] duration-150 ease-out select-none hover:bg-foreground/10 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground active:scale-[0.96] motion-reduce:transition-[background-color] disabled:opacity-50"
+                  >
+                    {bulkTracking ? "Tracking…" : `Track ${pickedMulti.length} option${pickedMulti.length === 1 ? "" : "s"} in one run`}
                   </button>
                   <button
                     type="button"

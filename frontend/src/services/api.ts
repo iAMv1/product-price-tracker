@@ -43,6 +43,7 @@ export interface TrackedTarget {
   productName: string;
   selectedOption: string;
   productUrl: string;
+  scrapeIntervalHours?: number;
   latest: { price: number; stock: string; observedAt: string } | null;
   lastScrape: {
     outcome: string;
@@ -140,10 +141,26 @@ export interface TrackResult extends TrackedTarget {
   firstScrape: { outcome: string; latest: TrackedTarget['latest'] } | null;
 }
 
-export function trackProduct(storeProductId: string, selectedOption: string): Promise<TrackResult> {
+export function trackProduct(
+  storeProductId: string,
+  selectedOption: string,
+  scrapeIntervalHours = 2,
+): Promise<TrackResult> {
   return postJson<TrackResult>('/api/tracked-products', {
     storeProductId,
     selectedOption,
+    scrapeIntervalHours,
+  });
+}
+
+export function updateInterval(id: string, scrapeIntervalHours: number): Promise<unknown> {
+  return fetch(`${BASE_URL}/api/tracked-products/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ scrapeIntervalHours }),
+  }).then((r) => {
+    if (!r.ok) throw new Error(`interval update failed with HTTP ${r.status}`);
+    return r.json() as Promise<unknown>;
   });
 }
 
@@ -161,6 +178,48 @@ export function fetchScrapeLog(id: string): Promise<AttemptEntry[]> {
 
 export function rescrapeTarget(id: string): Promise<{ succeeded: number; failed: number }> {
   return postJson(`/api/tracked-products/${encodeURIComponent(id)}/scrape`);
+}
+
+export interface AlertItem {
+  type: 'price_drop' | 'back_in_stock' | 'scrape_failed';
+  trackedProductId: string;
+  storeProductId: string;
+  productName: string;
+  selectedOption: string;
+  fromPrice?: number;
+  toPrice?: number;
+  dropPct?: number;
+  stock?: string;
+  errorCode?: string | null;
+  observedAt?: string;
+  attemptedAt?: string;
+}
+
+export interface ChangeEvent {
+  attempted_at: string;
+  error_code: string;
+  error_message: string | null;
+  store_product_id: string;
+  product_name: string;
+  selected_option: string;
+}
+
+export async function fetchAlerts(): Promise<AlertItem[]> {
+  const data = await getJson<{ results: AlertItem[] }>('/api/alerts');
+  return data.results;
+}
+
+export async function fetchChangeEvents(): Promise<ChangeEvent[]> {
+  const data = await getJson<{ results: ChangeEvent[] }>('/api/change-events');
+  return data.results;
+}
+
+export function trackByProduct(
+  storeProductId: string,
+  options: string[],
+  scrapeIntervalHours = 2,
+): Promise<{ succeeded: number; failed: number; targets: unknown }> {
+  return postJson('/api/tracked-products/by-product', { storeProductId, options, scrapeIntervalHours });
 }
 
 export function exportCsvUrl(): string {

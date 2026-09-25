@@ -3,6 +3,7 @@ import {
   fetchHistory,
   fetchScrapeLog,
   rescrapeTarget,
+  updateInterval,
   type AttemptEntry,
   type HistoryEntry,
   type TrackedTarget,
@@ -48,6 +49,8 @@ export function TargetCard({
   const [log, setLog] = useState<AttemptEntry[] | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [rescraping, setRescraping] = useState(false);
+  const [intervalHours, setIntervalHours] = useState(target.scrapeIntervalHours ?? 2);
+  const [savingInterval, setSavingInterval] = useState(false);
 
   async function toggle() {
     const next = !expanded;
@@ -77,6 +80,20 @@ export function TargetCard({
       setDetailError(error instanceof Error ? error.message : "Unknown error");
     } finally {
       setRescraping(false);
+    }
+  }
+
+  async function saveInterval() {
+    const hours = Math.min(168, Math.max(1, Math.round(Number(intervalHours) || 2)));
+    setSavingInterval(true);
+    try {
+      await updateInterval(target.id, hours);
+      setIntervalHours(hours);
+      await onChanged();
+    } catch (error) {
+      setDetailError(error instanceof Error ? error.message : "Unknown error");
+    } finally {
+      setSavingInterval(false);
     }
   }
 
@@ -180,6 +197,34 @@ export function TargetCard({
           />
         </div>
       )}
+
+      <form
+        className="mt-4 flex flex-wrap items-center gap-2 text-[13px]"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void saveInterval();
+        }}
+      >
+        <label className="text-muted">
+          Scrape every{" "}
+          <input
+            type="number"
+            min={1}
+            max={168}
+            value={intervalHours}
+            onChange={(e) => setIntervalHours(Number(e.target.value))}
+            className="h-8 w-16 rounded-lg border border-border bg-background px-2 text-foreground tabular-nums"
+          />{" "}
+          h
+        </label>
+        <button
+          type="submit"
+          disabled={savingInterval}
+          className="h-8 rounded-full px-3 font-medium text-foreground hover:bg-foreground/10 disabled:opacity-50"
+        >
+          {savingInterval ? "Saving…" : "Save"}
+        </button>
+      </form>
 
       <div className="mt-4 flex flex-wrap gap-2">
         <button

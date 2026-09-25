@@ -9,6 +9,11 @@ import type { FetchImpl } from '../src/scraper/store/catalog.js';
 import type { ScrapeFn } from '../src/scraper/runner.js';
 import type { ScrapeResult } from '../src/scraper/store/types.js';
 import { createSchemaDb, createTestQueryable } from './helpers/pgmem.js';
+import {
+  createScrapeRun,
+  listActiveTrackedProducts,
+  recordSuccessfulAttempt,
+} from '../src/persistence/repositories.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const RAW = resolve(HERE, 'fixtures', 'raw');
@@ -206,7 +211,7 @@ describe('tracking + evidence (TRACK-001 / UI-001 reads)', () => {
 
 describe('scheduler entrypoint (SCHED-001)', () => {
   it('rejects unauthenticated triggers and runs the batch when authorized', async () => {
-    const { app } = setup();
+    const { app, db } = setup();
     await request(app)
       .post('/api/tracked-products')
       .send({ storeProductId: '2626', selectedOption: 'o1' });
@@ -220,6 +225,15 @@ describe('scheduler entrypoint (SCHED-001)', () => {
       ).status,
     ).toBe(401);
 
+    // Just scraped via track: per-product frequency skips it (honest skip).
+    const skipped = await request(app)
+      .post('/api/internal/scrape-all')
+      .set('Authorization', 'Bearer dev-cron-secret');
+    expect(skipped.status).toBe(200);
+    expect(skipped.body).toMatchObject({ succeeded: 0, skipped: 1 });
+
+    // Age the last attempt past the 2h default: target becomes due again.
+    await db.query(`UPDATE scrape_attempts SET attempted_at = '2020-01-01T00:00:00Z'`);
     const res = await request(app)
       .post('/api/internal/scrape-all')
       .set('Authorization', 'Bearer dev-cron-secret');
@@ -253,6 +267,107 @@ describe('CSV export (EXPORT-001)', () => {
     );
     expect(lines.length).toBe(2);
     expect(lines[1]).toMatch(/^2626,Redwick Ukulele Nano,o1,\S+,62549,164,success,1$/);
+  });
+});
+
+describe('bonus: multi-option one-run track (by-product)', () => {
+  it('tracks + scrapes several options in a single run', async () => {
+    const { app } = setup();
+    const res = await request(app)
+      .post('/api/tracked-products/by-product')
+      .send({ storeProductId: '2626', options: ['o1', 'o2'] });
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ succeeded: 2, failed: 0 });
+    expect(res.body.targets).toHaveLength(2);
+    const list = await request(app).get('/api/tracked-products');
+    expect(list.body.count).toBe(2);
+  });
+
+  it('rejects unknown options and oversized batches', async () => {
+    const { app } = setup();
+    expect(
+      (
+        await request(app)
+          .post('/api/tracked-products/by-product')
+          .send({ storeProductId: '2626', options: ['o9'] })
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await request(app)
+          .post('/api/tracked-products/by-product')
+          .send({ storeProductId: '2626', options: ['o1', 'o2', 'o3', 'o4', 'o5', 'o6', 'o7', 'o8', 'o9'] })
+      ).status,
+    ).toBe(400);
+  });
+  it('stores and updates per-product scrape intervals', async () => {
+    const { app } = setup();
+    const created = await request(app)
+      .post('/api/tracked-products')
+      .send({ storeProductId: '2626', selectedOption: 'o1', scrapeIntervalHours: 6 });
+    expect(created.status).toBe(201);
+    const list = await request(app).get('/api/tracked-products');
+    expect(list.body.results[0]).toMatchObject({ scrapeIntervalHours: 6 });
+    const patched = await request(app)
+      .patch(`/api/tracked-products/${created.body.id}`)
+      .send({ scrapeIntervalHours: 12 });
+    expect(patched.status).toBe(200);
+    expect(patched.body).toMatchObject({ scrapeIntervalHours: 12 });
+    expect(
+      (await request(app).patch(`/api/tracked-products/${created.body.id}`).send({})).status,
+    ).toBe(400);
+  });
+});
+
+describe('bonus: alerts + change detection', () => {
+  it('serves empty alerts and change feed on fresh targets', async () => {
+    const { app } = setup();
+    await request(app)
+      .post('/api/tracked-products')
+      .send({ storeProductId: '2626', selectedOption: 'o1' });
+    const alerts = await request(app).get('/api/alerts');
+    expect(alerts.status).toBe(200);
+    expect(alerts.body).toMatchObject({ count: 0, results: [] });
+    const changes = await request(app).get('/api/change-events');
+    expect(changes.status).toBe(200);
+    expect(changes.body).toMatchObject({ count: 0, results: [] });
+  });
+
+  it('flags price drops computed from validated history only', async () => {
+    let price = 62549;
+    const dropping: ScrapeFn = (input) =>
+      Promise.resolve({
+        ok: true,
+        productId: input.productId,
+        productName: 'Redwick Ukulele Nano',
+        selectedOption: input.selectedOption,
+        price,
+        stock: '164',
+        durationMs: 10,
+        fetchStrategy: 'http',
+        parserVersion: 'store-handshake-v1',
+      } satisfies ScrapeResult);
+    const db = createTestQueryable(createSchemaDb());
+    const app = createApp({ db, storeFetch: stubStore, scrape: dropping });
+    await request(app)
+      .post('/api/tracked-products')
+      .send({ storeProductId: '2626', selectedOption: 'o1' });
+    price = 50000; // ~20% drop
+    const rows = await listActiveTrackedProducts(db);
+    const run = await createScrapeRun(db, { triggerType: 'manual', targetCount: 1 });
+    await recordSuccessfulAttempt(db, {
+      runId: run.id,
+      trackedProductId: rows[0]!.id,
+      attemptNumber: 1,
+      outcome: 'success',
+      price,
+      stock: '164',
+      durationMs: 10,
+    });
+    const alerts = await request(app).get('/api/alerts?dropPct=10');
+    expect(alerts.status).toBe(200);
+    expect(alerts.body.count).toBe(1);
+    expect(alerts.body.results[0]).toMatchObject({ type: 'price_drop', toPrice: 50000 });
   });
 });
 
