@@ -288,7 +288,8 @@ export function TargetCard({
           ) : history.length === 0 ? (
             <p className="text-sm text-muted">No validated observations yet.</p>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[420px] text-sm">
               <thead>
                 <tr className="text-left text-[13px] text-muted">
                   <th scope="col" className="py-1.5 pr-3 font-medium">Observed</th>
@@ -308,6 +309,7 @@ export function TargetCard({
                 ))}
               </tbody>
             </table>
+            </div>
           )}
 
           <h4 className="mt-5 mb-2 text-sm font-semibold text-foreground">Scrape log</h4>
@@ -316,7 +318,8 @@ export function TargetCard({
           ) : log.length === 0 ? (
             <p className="text-sm text-muted">No attempts recorded yet.</p>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[480px] text-sm">
               <thead>
                 <tr className="text-left text-[13px] text-muted">
                   <th scope="col" className="py-1.5 pr-3 font-medium">#</th>
@@ -342,6 +345,7 @@ export function TargetCard({
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       )}

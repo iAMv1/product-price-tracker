@@ -215,15 +215,25 @@ export default function Dashboard() {
     }
   }
 
-  function downloadCsv() {
+  async function downloadCsv() {
     setExportStatus("working");
-    const link = document.createElement("a");
-    link.href = exportCsvUrl();
-    link.download = "scrape-history.csv";
-    document.body.append(link);
-    link.click();
-    link.remove();
-    setExportStatus("done");
+    try {
+      const response = await fetch(exportCsvUrl());
+      if (!response.ok) throw new Error(`export failed with HTTP ${response.status}`);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "scrape-history.csv";
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      setExportStatus("done");
+    } catch (error) {
+      setExportStatus("idle");
+      setNotice(error instanceof Error ? error.message : "Export failed.");
+    }
   }
 
   const dbDown =
