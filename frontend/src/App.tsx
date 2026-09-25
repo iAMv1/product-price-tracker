@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { useRoute, type Route } from "./router";
 import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
@@ -16,6 +16,7 @@ const TITLES: Record<Route, string> = {
 /** Shell: hash routes, titles, skip link, focus reset, route fade. */
 export default function App() {
   const [route] = useRoute();
+  const reduce = useReducedMotion();
   useEffect(() => {
     document.title = TITLES[route];
     window.scrollTo(0, 0);
@@ -31,7 +32,7 @@ export default function App() {
       </a>
       <motion.div
         key={route}
-        initial={{ opacity: 0 }}
+        initial={reduce ? false : { opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3, ease: "easeOut" }}
       >
