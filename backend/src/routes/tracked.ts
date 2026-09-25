@@ -10,6 +10,7 @@ import {
   updateTrackedInterval,
 } from '../persistence/repositories.js';
 import { rowToTarget, runAllTargets } from '../scraper/runner.js';
+import { requireUser } from '../http/auth.js';
 import {
   fetchJson,
   itemUrl,
@@ -73,7 +74,8 @@ trackedRouter.post('/', async (req: Request, res: Response) => {
     });
     return;
   }
-  const { storeFetch, scrape } = readDeps(req);
+  const { storeFetch, scrape, authVerify } = readDeps(req);
+  if ((await requireUser(req, res, authVerify)) === null) return;
   const baseUrl = storeBaseUrl();
   const itemId = Number(storeProductId);
 
@@ -169,6 +171,7 @@ trackedRouter.patch('/:id', async (req: Request, res: Response) => {
     res.status(400).json({ error: 'bad_request', message: 'id must be a UUID' });
     return;
   }
+  if ((await requireUser(req, res, readDeps(req).authVerify)) === null) return;
   const body = (req.body ?? {}) as Record<string, unknown>;
   const hasActive = typeof body['isActive'] === 'boolean';
   const hasInterval =
@@ -211,6 +214,7 @@ trackedRouter.delete('/:id', async (req: Request, res: Response) => {
     res.status(400).json({ error: 'bad_request', message: 'id must be a UUID' });
     return;
   }
+  if ((await requireUser(req, res, readDeps(req).authVerify)) === null) return;
   // Hard delete cascades to attempts + history (schema ON DELETE CASCADE).
   // Explicit user choice; the audit trail for REMAINING targets is untouched.
   const deleted = await db.query('DELETE FROM tracked_products WHERE id = $1', [id]);
@@ -246,7 +250,8 @@ trackedRouter.get('/:id/scrape-log', async (req: Request, res: Response) => {
 trackedRouter.post('/:id/scrape', async (req: Request, res: Response) => {
   const db = await requireDb(req, res);
   if (db === null) return;
-  const { scrape } = readDeps(req);
+  const { scrape, authVerify } = readDeps(req);
+  if ((await requireUser(req, res, authVerify)) === null) return;
   const row = await getTrackedProduct(db, routeParam(req, 'id'));
   if (row === null) {
     res.status(404).json({ error: 'not_found', message: 'tracked product not found' });

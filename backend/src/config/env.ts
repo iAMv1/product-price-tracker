@@ -35,6 +35,10 @@ export const env = {
   /** Shared secret the external scheduler must present on internal endpoints. */
   cronSecret: readOptional('CRON_SECRET', isProduction ? '' : 'dev-cron-secret'),
 
+  /** Supabase Auth (email + Google). Empty = auth open (dev); set both to enforce. */
+  supabaseUrl: readOptional('SUPABASE_URL', ''),
+  supabaseAnonKey: readOptional('SUPABASE_ANON_KEY', ''),
+
   /** Comma-separated list of allowed browser origins. */
   corsOrigins: readOptional('CORS_ORIGINS', 'http://localhost:5173')
     .split(',')
@@ -50,10 +54,12 @@ export const env = {
 export function integrationReadiness(): {
   database: boolean;
   schedulerAuth: boolean;
+  userAuth: boolean;
 } {
   return {
     database: env.databaseUrl !== '',
     schedulerAuth: env.cronSecret !== '',
+    userAuth: env.supabaseUrl !== '' && env.supabaseAnonKey !== '',
   };
 }
 

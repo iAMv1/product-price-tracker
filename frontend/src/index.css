@@ -105,3 +105,21 @@ body {
     animation: none;
   }
 }
+
+/* Proof ticker: slow honest crawl, stops for reduced motion. */
+@keyframes ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.ticker-track {
+  animation: ticker-scroll 36s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track {
+    animation: none;
+  }
+}
