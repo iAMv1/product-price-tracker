@@ -19,19 +19,19 @@
     "cors": "^2.8.6",
     "dotenv": "^18.0.3",
     "express": "^5.2.1",
-    "pg": "^8.23.0"
+    "pg": "^8.23.0",
+    "typescript": "^7.0.2",
+    "@types/node": "^26.6.2",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6"
   },
   "devDependencies": {
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/node": "^26.6.2",
     "@types/pg": "^8.23.1",
     "@types/supertest": "^7.2.1",
     "pg-mem": "^3.0.14",
     "playwright": "^1.63.0",
     "supertest": "^7.3.0",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2",
     "vitest": "^5.0.2"
   }
 }
