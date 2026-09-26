@@ -31,6 +31,7 @@ export function ExpandingSearch({
   width = 320,
   shortcut = "/",
   onSearch,
+  onQueryChange,
   onOpenChange,
   className,
 }: {
@@ -39,6 +40,7 @@ export function ExpandingSearch({
   width?: number;
   shortcut?: string | null;
   onSearch?: (query: string) => void;
+  onQueryChange?: (query: string) => void;
   onOpenChange?: (open: boolean) => void;
   className?: string;
 }) {
@@ -150,7 +152,10 @@ export function ExpandingSearch({
           autoComplete="off"
           spellCheck={false}
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            onQueryChange?.(e.target.value);
+          }}
           onKeyDown={(e) => {
             if (e.key !== "Escape") return;
             e.preventDefault();

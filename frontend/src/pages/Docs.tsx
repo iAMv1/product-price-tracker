@@ -48,7 +48,7 @@ const SECTIONS: Array<{ id: string; title: string; body: string[]; code?: string
 
 export default function Docs() {
   return (
-    <div id="main" tabIndex={-1} className="mx-auto w-full max-w-3xl px-4 py-8 outline-none sm:px-6">
+    <div id="main" tabIndex={-1} className="mx-auto w-full max-w-3xl px-4 py-8 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground sm:px-6">
       <header className="flex items-center justify-between">
         <a href="#/" className="text-[15px] font-semibold tracking-tight">Price Tracker</a>
         <div className="flex items-center gap-1 text-sm">

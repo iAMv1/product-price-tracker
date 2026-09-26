@@ -46,14 +46,21 @@ function ProofTicker({ targets }: { targets: TrackedTarget[] }) {
   if (targets.length === 0) return null;
   const items = [...targets, ...targets];
   return (
-    <div className="relative flex overflow-hidden border-y border-border bg-surface" aria-label="Live prices">
+    <section
+      className="relative z-0 flex overflow-hidden border-y border-border bg-surface"
+      aria-label="Live prices"
+    >
       <div className="relative z-10 flex shrink-0 items-center gap-2 border-r border-border bg-surface px-4 text-[12px] font-semibold tracking-[0.18em] text-marker uppercase sm:px-5">
         <span aria-hidden className="size-1.5 rounded-full bg-marker motion-safe:animate-pulse" />
         Live
       </div>
       <div className="ticker-track flex w-max items-center gap-10 px-5 py-3">
         {items.map((t, i) => (
-          <span key={`${t.id}-${i}`} className="flex items-center gap-2 text-sm tabular-nums">
+          <span
+            key={`${t.id}-${i}`}
+            aria-hidden={i >= targets.length || undefined}
+            className="flex items-center gap-2 text-sm tabular-nums"
+          >
             <span className="font-semibold text-foreground">{t.productName}</span>
             <span className="text-muted">{t.selectedOption}</span>
             {t.latest ? (
@@ -65,7 +72,7 @@ function ProofTicker({ targets }: { targets: TrackedTarget[] }) {
           </span>
         ))}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -207,7 +214,7 @@ export default function Landing() {
   const hasProof = targets.length > 0;
 
   return (
-    <div id="main" tabIndex={-1} className="outline-none">
+    <div id="main" tabIndex={-1} className="focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground">
       <SiteNav variant="landing" />
 
       <div ref={heroRef} className="relative overflow-hidden">

@@ -90,7 +90,7 @@ export function ThemeToggle() {
         const rect = e.currentTarget.getBoundingClientRect();
         setTheme(next, rect.x + rect.width / 2, rect.y + rect.height / 2);
       }}
-      className="relative flex size-9 items-center justify-center rounded-full text-muted transition-[scale,color,background-color] duration-150 ease-out hover:bg-surface hover:text-foreground active:scale-[0.96] motion-reduce:transition-none"
+      className="relative flex size-10 items-center justify-center rounded-full text-muted transition-[scale,color,background-color] duration-150 ease-out hover:bg-surface hover:text-foreground active:scale-[0.96] motion-reduce:transition-none"
     >
       {theme && (
         <>

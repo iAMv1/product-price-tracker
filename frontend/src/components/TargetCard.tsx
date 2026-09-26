@@ -235,25 +235,31 @@ export function TargetCard({
             max={168}
             value={intervalHours}
             onChange={(e) => setIntervalHours(Number(e.target.value))}
-            className="h-8 w-16 rounded-lg border border-border bg-background px-2 text-center text-foreground tabular-nums"
+            className="h-9 w-16 rounded-lg border border-border bg-background px-2 text-center text-foreground tabular-nums"
           />{" "}
           h
         </label>
         <button
           type="submit"
           disabled={savingInterval}
-          className="h-8 rounded-full border border-border px-3 font-medium text-foreground hover:bg-foreground/10 disabled:opacity-50"
+          className="h-9 rounded-full border border-border px-3 font-medium text-foreground hover:bg-foreground/10 disabled:opacity-50"
         >
           {savingInterval ? "Saving…" : "Save"}
         </button>
       </form>
 
       <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">
+        <a
+          href={`#/product/${target.id}`}
+          className="inline-flex h-10 touch-manipulation items-center rounded-full border border-border px-4 text-[13px] font-medium text-foreground outline-hidden transition-[scale,background-color] duration-150 ease-out select-none hover:bg-foreground/10 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground active:scale-[0.96] motion-reduce:transition-[background-color]"
+        >
+          Quick view
+        </a>
         <button
           type="button"
           onClick={toggle}
           aria-expanded={expanded}
-          className="h-9 touch-manipulation rounded-full border border-border px-4 text-[13px] font-medium text-foreground outline-hidden transition-[scale,background-color] duration-150 ease-out select-none hover:bg-foreground/10 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground active:scale-[0.96] motion-reduce:transition-[background-color]"
+          className="h-10 touch-manipulation rounded-full border border-border px-4 text-[13px] font-medium text-foreground outline-hidden transition-[scale,background-color] duration-150 ease-out select-none hover:bg-foreground/10 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground active:scale-[0.96] motion-reduce:transition-[background-color]"
         >
           {expanded ? "Hide history and log" : "History and log"}
         </button>
@@ -261,7 +267,7 @@ export function TargetCard({
           type="button"
           onClick={rescrape}
           disabled={rescraping}
-          className="h-9 touch-manipulation rounded-full bg-foreground px-4 text-[13px] font-medium text-background outline-hidden transition-[scale,opacity] duration-150 ease-out select-none hover:opacity-90 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground active:scale-[0.96] motion-reduce:transition-[opacity] disabled:opacity-50"
+          className="h-10 touch-manipulation rounded-full bg-foreground px-4 text-[13px] font-medium text-background outline-hidden transition-[scale,opacity] duration-150 ease-out select-none hover:opacity-90 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground active:scale-[0.96] motion-reduce:transition-[opacity] disabled:opacity-50"
         >
           {rescraping ? "Scraping…" : "Scrape now"}
         </button>
@@ -276,7 +282,7 @@ export function TargetCard({
             }
           }}
           aria-live="polite"
-          className="ml-auto h-9 touch-manipulation rounded-full px-4 text-[13px] font-medium text-danger outline-hidden transition-[scale,background-color] duration-150 ease-out select-none hover:bg-danger/10 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground active:scale-[0.96] motion-reduce:transition-[background-color]"
+          className="ml-auto h-10 touch-manipulation rounded-full px-4 text-[13px] font-medium text-danger outline-hidden transition-[scale,background-color] duration-150 ease-out select-none hover:bg-danger/10 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground active:scale-[0.96] motion-reduce:transition-[background-color]"
         >
           {confirmUntrack ? "Confirm untrack?" : "Untrack"}
         </button>
