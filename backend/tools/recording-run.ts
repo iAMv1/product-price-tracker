@@ -1,12 +1,12 @@
 /**
- * Recording orchestrator (assignment: Observable Headed Run, 2-4 min).
- * Drives the graded demo end to end while a full-screen capture runs:
- *   A — live dashboard, 3 tracked targets
- *   B — real store scrapes in a headed Chromium window (3 products)
- *   C — failing response: option not on the page -> honest terminal failure
- *   D — honest history: retried rows in the scrape log + CSV export
- *   E — reliability recap
- * Layout: terminal left, browser right (launched via --window-position).
+ * Recording orchestrator — full-screen cut (2-4 min).
+ * One window owns the screen at a time; four swaps total:
+ *   1. terminal — intro
+ *   2. browser  — live dashboard, then the real store page (async price settle)
+ *   3. terminal — 3 real scrapes with retry/backoff, then a failing response
+ *   4. browser  — honest scrape log (retried rows) + CSV export
+ *   5. terminal — reliability recap
+ * flip() raises the active window full-screen (topmost) and sends the other back.
  */
 import { writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
@@ -14,104 +14,110 @@ import { scrapeProduct } from '../src/scraper/store/scrape.js';
 
 const APP = 'https://product-price-tracker-ochre.vercel.app';
 const STORE = 'https://demo.inelabteamdev.com';
+const API = 'https://ppt-backend-lyiv.onrender.com';
+const started = Date.now();
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const segment = async (title: string) => {
-  console.log(`\n===== ${title} =====`);
-  await sleep(4000);
-};
+const say = (line: string): void => console.log(line);
 
-const apiBase = 'https://ppt-backend-lyiv.onrender.com';
-const targets = await fetch(`${apiBase}/api/tracked-products`)
+/** Ask the driver to raise this window full-screen (driver owns the swap loop). */
+function flip(who: 'terminal' | 'browser'): void {
+  writeFileSync('../artifacts/recordings/.flip', who);
+}
+
+const targets = await fetch(`${API}/api/tracked-products`)
   .then((r) => r.json())
   .then((j: unknown) => (Array.isArray(j) ? j : (j as { results: [] }).results))
   .catch(() => []);
 const firstId: string | undefined = (targets as Array<{ id: string }>)[0]?.id;
-console.log(`[recording] tracked targets: ${(targets as unknown[]).length} (assignment needs 2-3)`);
 
-await segment('SEGMENT A - live dashboard: tracked targets, honest cards');
-console.log('[recording] what this run proves:');
-console.log('[recording]   1. real store scrapes with per-attempt output');
-console.log('[recording]   2. slow/failing responses retried with backoff - or recorded as failures');
-console.log('[recording]   3. history + CSV never gain invented values');
-await sleep(6000);
-const browser = await chromium.launch({
-  headless: false,
-  slowMo: 350,
-  args: ['--window-position=770,0', '--window-size=760,824'],
-});
-const page = await browser.newPage();
+say('INE Price Tracker - observable headed run of the live scraper');
+say(`tracked targets: ${(targets as unknown[]).length}  |  schedule: every 2 hours  |  store: demo.inelabteamdev.com`);
+say('');
+say('what this run proves:');
+say('   1. real store scrapes, per-attempt output');
+say('   2. slow and failing responses retried with backoff - or recorded as failures');
+say('   3. history and CSV never gain invented values');
+await sleep(10000);
+
+flip('browser');
+say('(browser) live dashboard');
+const browser = await chromium.launch({ headless: false, slowMo: 350, args: ['--start-maximized'] });
+const page = await browser.newPage({ viewport: null });
 await page.goto(`${APP}/#/app`, { waitUntil: 'networkidle', timeout: 45000 }).catch(() => {});
-await sleep(8000);
+await sleep(14000);
+say('(browser) real store page - the price loads asynchronously');
+try {
+  await page.goto(`${STORE}/item/2626`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  await page.waitForTimeout(1200);
+} catch {
+  /* page slowness is handled by the HTTP path below */
+}
+await sleep(5000);
 
-await segment('SEGMENT B - real store scrapes: HTTP path, live attempt output');
+flip('terminal');
+say('STEP 2  -  live scrapes: 3 tracked products, plain HTTP, retries with backoff');
 const pairs: Array<[string, string]> = [['2626', 'o1'], ['2229', 'o2'], ['2092', 'o2']];
 for (const [id, opt] of pairs) {
-  const url = `${STORE}/item/${id}`;
-  console.log(`\n[recording] opening ${url} (browser = observability only)`);
-  try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
-    // Store price loads async after a short delay - visible settle, then:
-    await page.waitForTimeout(1200);
-    console.log('[recording] page settled (async price load visible above)');
-  } catch {
-    console.log('[recording] page slow/failed - handled, HTTP scrape path does not depend on it');
-  }
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     const t0 = Date.now();
     const result = await scrapeProduct({ productId: id, selectedOption: opt });
     const dt = Date.now() - t0;
     if (result.ok) {
-      console.log(`[recording] attempt ${attempt}: SUCCESS price=${result.price} stock=${result.stock} (${dt}ms)`);
+      say(`  ${id}/${opt}  attempt ${attempt}: SUCCESS  price=${result.price}  stock=${result.stock}  (${dt}ms)`);
       break;
     }
-    console.log(`[recording] attempt ${attempt}: ${result.errorCode} transient=${result.transient} (${dt}ms) :: ${result.errorMessage}`);
-    if (!result.transient || attempt === 3) {
-      console.log('[recording] terminal failure recorded honestly, no invented values.');
-      break;
+    if (result.transient && attempt < 3) {
+      const backoff = Math.min(1000 * 2 ** (attempt - 1), 4000);
+      say(`  ${id}/${opt}  attempt ${attempt}: ${result.errorCode} (${dt}ms, transient) -> retry in ${backoff}ms`);
+      await sleep(backoff);
+      continue;
     }
-    const backoff = Math.min(1000 * 2 ** (attempt - 1), 4000);
-    console.log(`[recording] backing off ${backoff}ms before retry...`);
-    await sleep(backoff);
+    say(`  ${id}/${opt}  attempt ${attempt}: ${result.errorCode} (${dt}ms) -> recorded honestly, no invented values`);
+    break;
   }
-  await sleep(2500);
 }
-
-await segment('SEGMENT C - failing response: option does not exist on the page');
-console.log('[recording] same real product 2626, requested option o99 (not in the bundle axis)');
-await page.goto(`${STORE}/item/2626`, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
 await sleep(4000);
+
+say('');
+say('STEP 3  -  failing response: option o99 does not exist on this product');
 {
   const t0 = Date.now();
   const result = await scrapeProduct({ productId: '2626', selectedOption: 'o99' });
   if (result.ok) {
-    console.log(`[recording] unexpected success? price=${result.price}`);
+    say(`  unexpected success? price=${result.price}`);
   } else {
-    console.log(`[recording] attempt: ${result.errorCode} transient=${result.transient} (${Date.now() - t0}ms) :: ${result.errorMessage}`);
+    say(`  2626/o99  attempt: ${result.errorCode} (${Date.now() - t0}ms, not transient) -> FAILED row, price and stock left empty`);
   }
-  console.log('[recording] terminal failure recorded honestly, no invented values.');
+  say('  nothing invented, nothing hidden');
 }
+await sleep(6000);
 
-await segment('SEGMENT D - honest history: retried rows, then CSV export');
+flip('browser');
+say('(browser) product scrape log - retried rows keep price/stock empty');
 if (firstId) {
   await page.goto(`${APP}/#/product/${firstId}`, { waitUntil: 'networkidle', timeout: 45000 }).catch(() => {});
-  await sleep(5000);
+  await sleep(4000);
   await page.getByRole('radio', { name: 'Log' }).click().catch(() => {});
-  await sleep(8000);
-  console.log('[recording] scrape log: retried rows keep price/stock EMPTY - never invented');
+  await sleep(12000);
 }
+say('(browser) CSV export - one row per scrape attempt');
 await page.goto(`${APP}/#/app`, { waitUntil: 'networkidle', timeout: 45000 }).catch(() => {});
 await sleep(6000);
 await page.getByRole('button', { name: /Export full scrape history as CSV/ }).click().catch(() => {});
-await sleep(8000);
-console.log('[recording] CSV exported: one row per attempt (product id, name, option, ISO-8601 UTC, price, stock, outcome)');
+await sleep(9000);
 
-await segment('SEGMENT E - reliability recap');
-console.log('[recording] 15s upstream timeout, max 3 attempts, backoff+jitter (1s/2s/4s)');
-console.log('[recording] transient codes (timeout, 429, 5xx) -> retried; terminal codes -> failed honestly');
-console.log('[recording] external cron every 2h + keep-alive ping; no always-on loop (free tier)');
-console.log('[recording] only a fully validated observation becomes price history');
-await sleep(8000);
+flip('terminal');
+say('STEP 5  -  reliability recap');
+say('   15s upstream timeout  |  3 attempts  |  backoff + jitter (1s / 2s / 4s)');
+say('   timeout, 429 and 5xx are transient -> retried;  terminal codes -> failed, recorded honestly');
+say('   external cron every 2 hours + keep-alive ping; no always-on loop (free tier)');
+say('   only fully validated observations become price history');
+await sleep(10000);
+
+// Guarantee the cut stays inside the required 2-4 minute window.
+const pad = 118000 - (Date.now() - started);
+if (pad > 0) await sleep(pad);
 
 await browser.close();
 writeFileSync('../artifacts/recordings/.done', new Date().toISOString());
-console.log('[recording] done');
+say('done');
