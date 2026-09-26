@@ -24,6 +24,23 @@ npm run headed:scrape             # default: 2626/o1 2229/o2 2092/o2
 3. The browser window stays open while retries happen, so slow responses
    are watchable in both places at once.
 
+## Automated recording (used for the submission video)
+
+`tools/recording-run.ts` drives the whole 2–4 min demonstration unattended:
+segment A dashboard → B real scrapes (3 products) → C failing response
+(`2626 o99` → `option_not_found`, recorded honestly) → D retried rows in the
+scrape log + CSV export → E reliability recap. It launches the headed browser
+right-of-terminal (`--window-position=770,0`) so a single full-screen capture
+grabs terminal output and browser together:
+
+```bash
+# capture (fragmented mp4 survives a hard stop)
+ffmpeg -y -f gdigrab -framerate 15 -i desktop -c:v libx264 -preset veryfast \
+  -pix_fmt yuv420p -movflags frag_keyframe+empty_moov -t 240 headed-run.mp4
+# in a visible terminal, while capture runs:
+cd backend && npx tsx tools/recording-run.ts
+```
+
 ## Suggested 3-minute script
 
 - 0:00–0:30 — show the command + dashboard with 3 tracked targets.
