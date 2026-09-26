@@ -1,4 +1,11 @@
-import { useEffect, useId, useRef, useState } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type InputHTMLAttributes,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import { flushSync } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { useReducedMotion } from "../../hooks/useReducedMotion";
@@ -31,25 +38,46 @@ export function ExpandingSearch({
   placeholder = "Product name",
   width = 320,
   shortcut = "/",
+  defaultOpen = false,
   onSearch,
   onQueryChange,
   onOpenChange,
+  onInputKeyDown,
+  inputProps,
   className,
 }: {
   label?: string;
   placeholder?: string;
   width?: number;
   shortcut?: string | null;
+  /** Render already expanded and never auto-collapse (dashboard task field). */
+  defaultOpen?: boolean;
   onSearch?: (query: string) => void;
   onQueryChange?: (query: string) => void;
   onOpenChange?: (open: boolean) => void;
+  /** Extra keys handled before the internal Escape/shortcut logic. */
+  onInputKeyDown?: (ev: ReactKeyboardEvent<HTMLInputElement>) => void;
+  /** aria-* wiring for a parent combobox (role, expanded, activedescendant). */
+  inputProps?: InputHTMLAttributes<HTMLInputElement>;
   className?: string;
 }) {
   const reduceMotion = useReducedMotion();
   const id = useId();
   const { anchorRef, triggerProps, tooltipProps } = useTooltip("Search products, press /");
-  const [open, setOpen] = useState(false);
+  const persistent = defaultOpen;
+  const [open, setOpen] = useState(defaultOpen);
   const [query, setQuery] = useState("");
+  const [vw, setVw] = useState(() =>
+    typeof window === "undefined" ? 1280 : window.innerWidth,
+  );
+  useEffect(() => {
+    const onResize = () => setVw(window.innerWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  // Clamp to the viewport minus gutters: a fixed 420px field overflows a
+  // 390px phone and pushes the clear button off-screen (WCAG 1.4.10 reflow).
+  const fieldWidth = Math.min(width, Math.max(COLLAPSED + 80, vw - 32));
   const rootRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -69,11 +97,13 @@ export function ExpandingSearch({
 
   useEffect(() => {
     if (!shortcut) return;
-    const onKey = (e: KeyboardEvent) => {      if (e.key !== shortcut || open || e.defaultPrevented) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== shortcut || e.defaultPrevented) return;
       if (e.metaKey || e.ctrlKey || e.altKey || isEditable(e.target)) return;
       if (rootRef.current?.closest("[inert]")) return;
       e.preventDefault();
-      expand();
+      if (open) inputRef.current?.focus();
+      else expand();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -87,7 +117,7 @@ export function ExpandingSearch({
   return (
     <motion.div
       initial={false}
-      animate={{ width: open ? width : COLLAPSED }}
+      animate={{ width: open ? fieldWidth : COLLAPSED }}
       transition={widthTransition}
       className={cn("flex justify-end", className)}
     >
@@ -95,14 +125,14 @@ export function ExpandingSearch({
         ref={rootRef}
         role="search"
         initial={false}
-        animate={{ width: open ? width : COLLAPSED }}
+        animate={{ width: open ? fieldWidth : COLLAPSED }}
         transition={widthTransition}
         onSubmit={(e) => {
           e.preventDefault();
           onSearch?.(query);
         }}
         onBlur={(e) => {
-          if (!open || query !== "") return;
+          if (!open || persistent || query !== "") return;
           if (rootRef.current?.contains(e.relatedTarget as Node | null)) return;
           change(false);
         }}
@@ -153,6 +183,7 @@ export function ExpandingSearch({
           {label}
         </label>
         <input
+          {...inputProps}
           ref={inputRef}
           id={id}
           type="search"
@@ -164,13 +195,19 @@ export function ExpandingSearch({
             onQueryChange?.(e.target.value);
           }}
           onKeyDown={(e) => {
+            inputProps?.onKeyDown?.(e);
+            if (e.defaultPrevented) return;
+            onInputKeyDown?.(e);
+            if (e.defaultPrevented) return;
             if (e.key !== "Escape") return;
             e.preventDefault();
+            setQuery("");
             onSearch?.("");
+            if (persistent) return; // field stays open and focused
             change(false);
             triggerRef.current?.focus();
           }}
-          style={{ width }}
+          style={{ width: fieldWidth }}
           className={cn(
             "absolute inset-y-0 left-0 bg-transparent pr-10 pl-9 text-sm outline-hidden [&::-webkit-search-cancel-button]:appearance-none",
             !open && "invisible",

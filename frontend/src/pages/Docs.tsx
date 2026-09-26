@@ -1,5 +1,4 @@
-import { ThemeToggle } from "../components/ui/theme-toggle";
-import { TooltipGroup } from "../components/ui/tooltip-group";
+import { SiteNav } from "../components/site-nav";
 
 /** Product docs: setup, schedule, env, API, auth/Google setup. */
 const SECTIONS: Array<{ id: string; title: string; body: string[]; code?: string }> = [
@@ -16,20 +15,21 @@ const SECTIONS: Array<{ id: string; title: string; body: string[]; code?: string
     title: "Scraping schedule",
     body: [
       "External cron (cron-job.org) POSTs /api/internal/scrape-all every 2 hours — Custom 0 */2 * * * — with Authorization: Bearer <CRON_SECRET>. No in-process loop exists; free-tier instances may sleep between invocations. Each target carries scrape_interval_hours (default 2, range 1–168); recently-scraped targets are skipped honestly.",
+      "The trigger is layered so it can never silently stop: Supabase pg_cron pings GET /health every 10 minutes (2-59/10 * * * *) to keep the free Render instance awake, and a second pg_cron job re-fires scrape-all at :50 past every even UTC hour (50 */2 * * *). If the primary cron dies entirely, the rescue still lands inside the same 2-hour window; the due-check turns any overlap into an honest skipped no-op instead of double work. A GitHub Actions workflow pings /health every 5 minutes as a redundant third layer.",
     ],
   },
   {
     id: "env",
     title: "Environment variables",
     body: [
-      "Backend: PORT, STORE_URL, DATABASE_URL (Supabase pooler), CRON_SECRET, CORS_ORIGINS, SUPABASE_URL + SUPABASE_ANON_KEY (user auth; unset = open dev mode). Frontend: VITE_API_BASE_URL (Render URL in production), VITE_BACKEND_ORIGIN (dev proxy), VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY (login UI).",
+      "Backend: PORT, STORE_URL, DATABASE_URL (Supabase pooler), CRON_SECRET, CORS_ORIGINS. Frontend: VITE_API_BASE_URL (Render URL in production), VITE_BACKEND_ORIGIN (dev proxy).",
     ],
   },
   {
     id: "api",
     title: "API",
     body: [
-      "Public reads: GET /health, /api/products/search?q=, /api/products/:id, /api/tracked-products (+/:id/history, /:id/scrape-log), /api/alerts, /api/change-events, /api/export.csv. Authed writes (Bearer session): POST/PATCH/DELETE /api/tracked-products, POST /:id/scrape, POST /by-product. Scheduler: POST /api/internal/scrape-all (Bearer CRON_SECRET).",
+      "Public reads: GET /health, /api/products/search?q=, /api/products/:id, /api/tracked-products (+/:id/history, /:id/scrape-log), /api/alerts, /api/change-events, /api/export.csv. Open writes (public demo — no user accounts by design): POST/PATCH/DELETE /api/tracked-products, POST /:id/scrape, POST /by-product. Scheduler: POST /api/internal/scrape-all (Bearer CRON_SECRET, rate-limited 30 / 15 min).",
     ],
   },
   {
@@ -49,17 +49,10 @@ const SECTIONS: Array<{ id: string; title: string; body: string[]; code?: string
 
 export default function Docs() {
   return (
-    <div id="main" tabIndex={-1} className="mx-auto w-full max-w-3xl px-4 py-8 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground sm:px-6">
-      <header className="flex items-center justify-between">
-        <a href="#/" className="text-[15px] font-semibold tracking-tight">Price Tracker</a>
-        <div className="flex items-center gap-1 text-sm">
-          <a href="#/app" className="rounded-full px-3 py-1.5 hover:bg-foreground/10">Dashboard</a>
-          <TooltipGroup className="flex items-center gap-1 text-sm">
-            <ThemeToggle />
-          </TooltipGroup>
-        </div>
-      </header>
-      <h1 className="mt-10 text-4xl font-semibold tracking-tight sm:text-5xl">Docs</h1>
+    <>
+      <SiteNav variant="app" />
+      <div id="main" tabIndex={-1} className="mx-auto w-full max-w-3xl px-4 py-8 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground sm:px-6">
+        <h1 className="mt-6 text-4xl font-semibold tracking-tight sm:text-5xl">Docs</h1>
       <p className="mt-3 text-muted">Everything needed to run, schedule, and authenticate the tracker.</p>
       <div className="mt-10 grid gap-10">
         {SECTIONS.map((s) => (
@@ -76,6 +69,7 @@ export default function Docs() {
           </section>
         ))}
       </div>
-    </div>
+      </div>
+    </>
   );
 }

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion, useScroll, useTransform } from "motion/react";
 import {
   fetchAlerts,
+  fetchHistory,
   fetchRuns,
   listTracked,
   type AlertItem,
@@ -9,6 +10,9 @@ import {
   type TrackedTarget,
 } from "../services/api";
 import { SiteNav } from "../components/site-nav";
+import { AssembleHeadline } from "../components/ui/assemble-headline";
+import { Countdown } from "../components/ui/countdown";
+import { Odometer } from "../components/ui/odometer";
 import { RelativeTime } from "../components/ui/relative-time";
 import { cn } from "../lib/cn";
 import { formatRupees } from "../lib/format";
@@ -122,11 +126,35 @@ function HeroProof({ targets }: { targets: TrackedTarget[] }) {
         </div>
         <p className="mt-2 truncate text-[15px] font-semibold text-foreground">{t.productName}</p>
         <p className="text-[13px] text-muted tabular-nums">
-          {t.selectedOption} · stock {t.latest ? t.latest.stock : "—"}
+          {t.selectedOption} &middot; stock {t.latest ? t.latest.stock : "awaiting first scrape"}
         </p>
-        <p className="mt-3 text-4xl font-semibold tracking-tight text-foreground tabular-nums">
-          {t.latest ? formatRupees(t.latest.price) : "awaiting first scrape"}
-        </p>
+        {t.latest ? (
+          <>
+            {/* The number rolls, because a price that changes should look like
+                it changed rather than blink to a new figure. */}
+            <div className="mt-3 flex items-baseline gap-1.5">
+              <span aria-hidden className="text-2xl font-medium text-muted">&#8377;</span>
+              <Odometer
+                value={t.latest.price}
+                className="text-4xl leading-none font-semibold tracking-tight text-foreground"
+              />
+            </div>
+            <HeroSpark productId={t.id} />
+          </>
+        ) : (
+          <p className="mt-3 text-2xl leading-tight font-semibold text-foreground">
+            awaiting first scrape
+          </p>
+        )}
+      </motion.div>
+
+      {/* The one number on the page that moves on its own, and it moves for a
+          real reason: the cron cadence is a real boundary. */}
+      <motion.div
+        {...rise(0.24)}
+        className="mt-4 ml-6 rotate-[0.6deg] rounded-2xl border border-dashed border-border bg-background p-4 shadow-raised sm:ml-12"
+      >
+        <Countdown />
       </motion.div>
 
       <motion.div
@@ -160,6 +188,106 @@ function HeroProof({ targets }: { targets: TrackedTarget[] }) {
           {alertLabel(firstAlert)} · {firstAlert.productName}
         </motion.div>
       )}
+    </div>
+  );
+}
+
+/**
+ * The live price card's trend line. It DRAWS itself left to right, because
+ * left-to-right is past-to-present: the direction of the stroke carries the
+ * direction of time. The data is the real /history series — nothing is
+ * interpolated, and a product with fewer than two observations shows no line
+ * at all rather than an invented one.
+ */
+function HeroSpark({ productId }: { productId: string }) {
+  const reduce = useReducedMotion();
+  const [points, setPoints] = useState<number[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchHistory(productId)
+      .then((rows) => {
+        if (cancelled) return;
+        // Newest first from the API; the line reads oldest to newest.
+        setPoints(rows.map((r) => r.price).reverse());
+      })
+      .catch(() => {
+        if (!cancelled) setPoints([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [productId]);
+
+  if (points === null || points.length < 2) return null;
+
+  const W = 300;
+  const H = 34;
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const span = max - min || 1;
+  const step = W / (points.length - 1);
+  const d = points
+    .map((v, i) => {
+      const x = (i * step).toFixed(1);
+      const y = (H - ((v - min) / span) * H).toFixed(1);
+      return `${i ? "L" : "M"}${x} ${y}`;
+    })
+    .join(" ");
+  const lastPoint = points[points.length - 1] ?? 0;
+  const endY = H - ((lastPoint - min) / span) * H;
+  const first = points[0] ?? 0;
+  const delta = lastPoint - first;
+  const dropped = delta < 0;
+
+  return (
+    <div className="mt-3">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="none"
+        className="h-[34px] w-full overflow-visible"
+        role="img"
+        aria-label={`Price trend across ${points.length} observations, from ${first} to ${lastPoint}`}
+      >
+        <motion.path
+          d={d}
+          fill="none"
+          strokeWidth={1.75}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="stroke-foreground"
+          initial={reduce ? false : { pathLength: 0 }}
+          animate={{ pathLength: 1 }}
+          transition={{
+            duration: reduce ? 0 : 1.3,
+            delay: reduce ? 0 : 0.35,
+            ease: [0.4, 0, 0.2, 1],
+          }}
+        />
+        <motion.circle
+          cx={W}
+          cy={endY}
+          r={2.75}
+          className="fill-foreground"
+          initial={reduce ? false : { opacity: 0, scale: 0 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{
+            duration: reduce ? 0 : 0.4,
+            delay: reduce ? 0 : 1.5,
+            ease: [0.16, 1, 0.3, 1],
+          }}
+          style={{ transformOrigin: `${W}px ${endY}px` }}
+        />
+      </svg>
+      <p className="mt-1 font-data text-[12px] text-muted tabular-nums">
+        {points.length} observations
+        {delta !== 0 && (
+          <span className={dropped ? "text-danger" : "text-muted"}>
+            {" · "}
+            {dropped ? "▼" : "▲"} {formatRupees(Math.abs(delta))}
+          </span>
+        )}
+      </p>
     </div>
   );
 }
@@ -227,10 +355,15 @@ export default function Landing() {
         >
           <div>
             <p className="text-[13px] font-medium tracking-[0.2em] text-marker uppercase">
-              INE mock store · scraped every 2 hours
+              INE mock store &middot; scraped every 2 hours
             </p>
             <h1 className="mt-4 text-5xl leading-[1.02] font-semibold tracking-tight text-balance sm:text-6xl lg:text-7xl">
-              The store lies. The log doesn&rsquo;t.
+              {/* The second clause is the point of the sentence, so it drops
+                  back to the muted italic and the words assemble in order. */}
+              <AssembleHeadline
+                text="The store lies. The log doesn&rsquo;t."
+                emphasis={3}
+              />
             </h1>
             <p className="mt-6 max-w-xl text-base text-muted sm:text-lg">
               A price tracker that survives an awkward storefront: late prices, slow
@@ -325,9 +458,9 @@ export default function Landing() {
         <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-6 text-[13px] text-muted sm:px-6">
           <p>React · Express · Supabase · cron-job.org</p>
           <p className="flex gap-4">
-            <a href="#/docs" className="hover:text-foreground">Docs</a>
-            <a href="#/changelog" className="hover:text-foreground">Changelog</a>
-            <a href="https://demo.inelabteamdev.com" target="_blank" rel="noreferrer" className="hover:text-foreground">Mock store</a>
+            <a href="#/docs" className="rounded-full py-1.5 hover:text-foreground">Docs</a>
+            <a href="#/changelog" className="rounded-full py-1.5 hover:text-foreground">Changelog</a>
+            <a href="https://demo.inelabteamdev.com" target="_blank" rel="noreferrer" className="rounded-full py-1.5 hover:text-foreground">Mock store</a>
           </p>
         </div>
       </footer>

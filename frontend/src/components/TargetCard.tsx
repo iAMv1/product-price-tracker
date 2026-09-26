@@ -141,7 +141,7 @@ export function TargetCard({
               href={target.productUrl}
               target="_blank"
               rel="noreferrer"
-              className="underline decoration-foreground/30 underline-offset-2 outline-hidden hover:decoration-foreground focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground"
+              className="inline-block py-1 underline decoration-foreground/30 underline-offset-2 outline-hidden hover:decoration-foreground focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground"
             >
               store page
             </a>
@@ -151,7 +151,9 @@ export function TargetCard({
       </header>
 
       <div className="mt-4">
-        <p className="text-[13px] text-muted">Current price</p>
+        {/* Honest label: after a failed attempt this value is the LAST
+            validated observation, not a live price. */}
+        <p className="text-[13px] text-muted">Last validated price</p>
         {target.latest ? (
           <div className="mt-1 flex items-baseline gap-1.5">
             <span aria-hidden className="text-xl font-medium text-muted">
@@ -171,7 +173,7 @@ export function TargetCard({
         <div>
           <dt className="text-[13px] text-muted">Stock</dt>
           <dd className="font-medium text-foreground tabular-nums">
-            {target.latest ? target.latest.stock : "—"}
+            {target.latest ? target.latest.stock : "no data"}
           </dd>
         </div>
         <div>
@@ -180,7 +182,7 @@ export function TargetCard({
             {target.latest ? (
               <RelativeTime date={target.latest.observedAt} />
             ) : (
-              "—"
+              "no data"
             )}
           </dd>
         </div>
@@ -238,14 +240,14 @@ export function TargetCard({
             max={168}
             value={intervalHours}
             onChange={(e) => setIntervalHours(Number(e.target.value))}
-            className="h-9 w-16 rounded-lg border border-border bg-background px-2 text-center text-foreground tabular-nums"
+            className="h-10 w-16 rounded-lg border border-border bg-background px-2 text-center text-foreground tabular-nums"
           />{" "}
           h
         </label>
         <button
           type="submit"
           disabled={savingInterval}
-          className="h-9 rounded-full border border-border px-3 font-medium text-foreground hover:bg-foreground/10 disabled:opacity-50"
+          className="h-10 rounded-full border border-border px-3 font-medium text-foreground hover:bg-foreground/10 disabled:opacity-50"
         >
           {savingInterval ? "Saving…" : "Save"}
         </button>
@@ -322,7 +324,11 @@ export function TargetCard({
         </div>
       )}
 
-      {detailError && <p className="mt-3 text-sm text-danger">{detailError}</p>}
+      {detailError && (
+        <p role="alert" className="mt-3 text-sm text-danger">
+          {detailError}
+        </p>
+      )}
 
       {expanded && (
         <div className="mt-2">
@@ -382,7 +388,11 @@ export function TargetCard({
                     </td>
                     <td className="py-1.5 text-muted">
                       {entry.outcome === "success"
-                        ? `${formatRupees(entry.price ?? 0)} · ${entry.stock}`
+                        ? entry.price == null
+                          // Absence stated in words — a success row without a
+                          // parsed price never fabricates ₹0.
+                          ? `price not recorded · stock ${entry.stock ?? "unknown"}`
+                          : `${formatRupees(entry.price)} · ${entry.stock ?? "stock unknown"}`
                         : (entry.error_code ?? entry.error_message ?? "—")}
                     </td>
                   </tr>
@@ -396,3 +406,4 @@ export function TargetCard({
     </article>
   );
 }
+

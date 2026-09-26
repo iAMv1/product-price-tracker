@@ -153,7 +153,7 @@ export function RelativeTime({
         if (e.key === "Escape") hide();
       }}
       className={cn(
-        "relative inline-flex cursor-default rounded-sm whitespace-nowrap tabular-nums transition-[color] duration-150 ease-out hover:text-foreground focus-visible:text-foreground outline-hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-foreground",
+        "relative inline-flex cursor-default rounded-sm whitespace-nowrap tabular-nums py-1 transition-[color] duration-150 ease-out hover:text-foreground focus-visible:text-foreground outline-hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-foreground",
         className,
       )}
     >
