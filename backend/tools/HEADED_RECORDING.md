@@ -26,19 +26,18 @@ npm run headed:scrape             # default: 2626/o1 2229/o2 2092/o2
 
 ## Automated recording (used for the submission video)
 
-`tools/recording-run.ts` drives the whole 2–4 min demonstration unattended:
-segment A dashboard → B real scrapes (3 products) → C failing response
-(`2626 o99` → `option_not_found`, recorded honestly) → D retried rows in the
-scrape log + CSV export → E reliability recap. It launches the headed browser
-right-of-terminal (`--window-position=770,0`) so a single full-screen capture
-grabs terminal output and browser together:
+`backend/tools/recording-run.ts` drives the whole 2–4 min demonstration unattended:
+intro → A dashboard (browser) → B real scrapes (terminal, 3 products) → C failing
+response (`2626 o99` → `option_not_found`, recorded honestly) → D retried rows in
+the scrape log + CSV export (browser) → E reliability recap (terminal). Each segment
+requests the stage by writing `artifacts/recordings/.flip`; the capture driver
+(`record-driver.ps1`) owns the window swap loop — one full-screen window at a time,
+`SetWindowPos` topmost, terminal handle picked at launch — while ffmpeg records the
+desktop with `CreateNoWindow` and a fragmented mp4 (survives the hard stop):
 
 ```bash
-# capture (fragmented mp4 survives a hard stop)
-ffmpeg -y -f gdigrab -framerate 15 -i desktop -c:v libx264 -preset veryfast \
-  -pix_fmt yuv420p -movflags frag_keyframe+empty_moov -t 240 headed-run.mp4
-# in a visible terminal, while capture runs:
-cd backend && npx tsx tools/recording-run.ts
+powershell -ExecutionPolicy Bypass -File record-driver.ps1   # ~2.5 min, owns capture + swaps
+# the driver launches: cd backend && npx tsx tools/recording-run.ts
 ```
 
 ## Suggested 3-minute script
