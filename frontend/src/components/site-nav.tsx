@@ -15,7 +15,7 @@ export function SiteNav({ variant }: { variant: "landing" | "app" }) {
         <a
           href="#/"
           aria-current={route === "landing" ? "page" : undefined}
-          className="py-1 text-[15px] font-semibold tracking-tight"
+          className="font-voice py-1 text-[17px] text-foreground"
         >
           Price Tracker
         </a>
@@ -38,6 +38,9 @@ export function SiteNav({ variant }: { variant: "landing" | "app" }) {
           >
             Changelog
           </a>
+          {/* In the app, "Landing" is a way back, not a call to action:
+              same weight as every other text link — no border pill
+              competing with the current page's context. */}
           {variant === "landing" ? (
             <a
               href="#/app"
@@ -48,7 +51,7 @@ export function SiteNav({ variant }: { variant: "landing" | "app" }) {
           ) : (
             <a
               href="#/"
-              className="rounded-full border border-border px-4 py-1.5 font-medium hover:bg-foreground/10"
+              className="rounded-full px-3 py-1.5 text-muted hover:bg-foreground/10 hover:text-foreground"
             >
               Landing
             </a>
@@ -71,7 +74,9 @@ export function SectionTitle({
 }) {
   return (
     <div className="flex items-center gap-3">
-      <h2 className="text-[15px] font-semibold text-foreground">{children}</h2>
+      <h2 className="font-data text-[11px] font-medium tracking-[0.14em] text-muted uppercase">
+        {children}
+      </h2>
       <span aria-hidden className="h-px flex-1 bg-border" />
       {right}
     </div>

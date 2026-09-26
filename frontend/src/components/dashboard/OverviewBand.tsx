@@ -53,7 +53,7 @@ export function OverviewBand({
     <section aria-label="Overview">
       <SectionTitle
         right={
-          <span className="text-[13px] text-muted">
+          <span className="font-data text-[12px] text-muted">
             checked every 2 hours
           </span>
         }
@@ -83,7 +83,7 @@ export function RunsStrip({ runs }: { runs: RunEntry[] }) {
     <section aria-label="Recent runs" className="mt-8">
       <SectionTitle
         right={
-          <span className="text-[13px] text-muted">every 2 hours</span>
+          <span className="font-data text-[12px] text-muted">every 2 hours</span>
         }
       >
         Recent runs
