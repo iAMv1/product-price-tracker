@@ -53,7 +53,7 @@ export default function Docs() {
     <>
       <SiteNav variant="app" />
       <div id="main" tabIndex={-1} className="mx-auto w-full max-w-3xl px-4 py-8 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground sm:px-6">
-        <h1 className="mt-6 text-4xl font-semibold tracking-tight sm:text-5xl">Docs</h1>
+        <h1 className="font-voice mt-6 text-5xl tracking-tight sm:text-6xl">Docs</h1>
       <p className="mt-3 text-muted">Everything needed to run and schedule the tracker — including its one Bearer-authenticated route. Public demo writes stay open; there are no user sessions.</p>
       <div className="mt-10 grid gap-10">
         {SECTIONS.map((s) => (

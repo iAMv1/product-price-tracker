@@ -78,15 +78,27 @@ export function Sparkline({
 
   return (
     <div className={cn("w-[520px] max-w-full", className)}>
-      <div className="flex items-baseline justify-between">
+      <div className="flex items-end justify-between gap-3">
         <div>
-          <p className="text-[15px] text-muted">{title}</p>
-          <p className="text-3xl font-semibold tracking-tight text-foreground tabular-nums">
+          <p className="font-data text-[11px] tracking-[0.14em] text-muted uppercase">
+            {title}
+          </p>
+          <p className="font-data mt-1 text-[26px] leading-none font-semibold tracking-tight text-foreground tabular-nums">
             {format(last.value)}
           </p>
         </div>
-        <p className="text-[15px] text-muted">
-          <span className="font-medium text-foreground tabular-nums">
+        {/* Delta as a boxed annotation — mono, tabular, red only on a drop. */}
+        <p
+          className={cn(
+            "font-data border border-border px-2 py-1 text-[12px] leading-none whitespace-nowrap",
+            delta < 0
+              ? "text-marker"
+              : delta > 0
+                ? "text-foreground"
+                : "text-muted",
+          )}
+        >
+          <span className="font-semibold tabular-nums">
             {delta > 0 ? "+" : delta < 0 ? "-" : ""}
             {format(Math.abs(delta))}
           </span>{" "}
@@ -100,7 +112,7 @@ export function Sparkline({
         tabIndex={0}
         aria-roledescription="line chart"
         aria-label={`${title}, ${data.length} points. Use arrow keys to read values.`}
-        className="relative mt-12 aspect-[520/160] w-full touch-pan-y rounded-sm outline-hidden select-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-4 focus-visible:outline-foreground"
+        className="relative mt-6 aspect-[520/160] w-full touch-pan-y rounded-sm outline-hidden select-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-4 focus-visible:outline-foreground"
         onPointerDown={(e) => {
           if (e.pointerType !== "touch") return;
           setIndex(nearest(e.clientX));
@@ -143,6 +155,40 @@ export function Sparkline({
           className="block h-auto w-full overflow-visible"
           aria-hidden
         >
+          {/* Instrument frame: hairline at max, mid, min — the chart sits in
+              a measured space instead of floating on the page. */}
+          <line x1={PAD_X} x2={W - PAD_X} y1={PAD_Y} y2={PAD_Y} className="stroke-border" />
+          <line
+            x1={PAD_X}
+            x2={W - PAD_X}
+            y1={(PAD_Y + (H - PAD_Y)) / 2}
+            y2={(PAD_Y + (H - PAD_Y)) / 2}
+            className="stroke-border"
+            strokeDasharray="2 4"
+          />
+          <line
+            x1={PAD_X}
+            x2={W - PAD_X}
+            y1={H - PAD_Y}
+            y2={H - PAD_Y}
+            className="stroke-border"
+          />
+          <text
+            x={W - PAD_X}
+            y={PAD_Y - 3}
+            textAnchor="end"
+            className="font-data fill-muted text-[9px] tabular-nums"
+          >
+            {format(max)}
+          </text>
+          <text
+            x={W - PAD_X}
+            y={H - PAD_Y + 10}
+            textAnchor="end"
+            className="font-data fill-muted text-[9px] tabular-nums"
+          >
+            {format(min)}
+          </text>
           <motion.path
             d={area}
             className="fill-foreground/[0.08]"
@@ -164,6 +210,27 @@ export function Sparkline({
                 ? { pathLength: { duration: 0 }, opacity: DRAW }
                 : { pathLength: DRAW, opacity: { duration: 0.05 } }
             }
+          />
+          {/* Every fall from the previous observation gets a red marker —
+              the one accent, spent only where the price actually dropped. */}
+          {data.map((d, i) =>
+            i > 0 && d.value < data[i - 1]!.value ? (
+              <circle
+                key={`drop-${i}`}
+                cx={xAt(i)}
+                cy={yAt(d.value)}
+                r={3}
+                className="fill-background stroke-marker"
+                strokeWidth={1.5}
+              />
+            ) : null,
+          )}
+          {/* The reading at rest: last point, always marked. */}
+          <circle
+            cx={xAt(data.length - 1)}
+            cy={yAt(last.value)}
+            r={3.5}
+            className="fill-foreground"
           />
         </svg>
 

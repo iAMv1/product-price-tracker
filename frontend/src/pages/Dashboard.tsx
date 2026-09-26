@@ -136,10 +136,10 @@ export default function Dashboard() {
         <main id="main" tabIndex={-1} className="instrument-grid mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
           <header className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <h1 className="font-voice text-[34px] leading-tight">
+              <h1 className="font-voice text-[42px] leading-[1.05]">
                 Price Tracker
               </h1>
-              <p className="mt-1 text-[15px] text-muted">
+              <p className="font-data mt-2 text-[13px] tracking-[0.08em] text-muted uppercase">
                 Validated observations only. Failures stay visible.
               </p>
             </div>

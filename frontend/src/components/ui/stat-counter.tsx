@@ -40,7 +40,7 @@ export function StatCounter({
     <div className={cn("@container w-full", className)}>
       <dl
         ref={ref}
-        className="grid grid-cols-2 gap-3 @min-[560px]:grid-cols-4"
+        className="grid grid-cols-2 gap-x-6 gap-y-5 @min-[560px]:grid-cols-4"
       >
         {stats.map((stat) => (
           <StatCard key={stat.label} stat={stat} started={inView} />
@@ -88,17 +88,21 @@ function StatCard({
   };
 
   return (
+    // Ledger column, not a floating card: a hairline over the figure and the
+    // grid gap does the separating — no nested rounded boxes in the bento.
     <div
-      className="flex min-w-0 flex-col gap-1 rounded-2xl border border-border bg-background p-4"
+      className="flex min-w-0 flex-col gap-2 border-t border-border pt-3"
       onPointerMove={series ? pick : undefined}
       onPointerLeave={series ? () => setScrub(null) : undefined}
     >
-      <dt className="text-[13px] text-muted">{stat.label}</dt>
+      <dt className="font-data text-[11px] tracking-[0.12em] text-muted uppercase">
+        {stat.label}
+      </dt>
       <dd className="flex flex-col gap-2">
         <span className="sr-only">{stat.format.format(shown)}</span>
         <motion.span
           aria-hidden
-          className="truncate font-mono text-2xl font-semibold tracking-tight tabular-nums text-foreground"
+          className="truncate font-data text-[26px] leading-none font-semibold tracking-tight tabular-nums text-foreground"
           style={{ opacity: started ? 1 : 0 }}
         >
           {text}
@@ -142,6 +146,9 @@ function Spark({
   const previous = data[index - 1] ?? current;
   const rising = current >= previous;
   const good = rising === (goodWhen === "up");
+  // A flat series carries no signal: a zero-failure history drawn red reads
+  // as broken. No movement, no colour — colour means change here.
+  const flat = min === max;
 
   return (
     <svg
@@ -156,13 +163,25 @@ function Spark({
         strokeWidth={1.5}
         strokeLinecap="round"
         strokeLinejoin="round"
-        className={good ? "stroke-foreground" : "stroke-danger"}
+        className={
+          flat
+            ? "stroke-border"
+            : good
+              ? "stroke-foreground"
+              : "stroke-danger"
+        }
       />
       <circle
         cx={index * step}
         cy={SPARK_H - ((current - min) / span) * SPARK_H}
         r={2.5}
-        className={good ? "fill-foreground" : "fill-danger"}
+        className={
+          flat
+            ? "fill-muted"
+            : good
+              ? "fill-foreground"
+              : "fill-danger"
+        }
       />
     </svg>
   );

@@ -56,7 +56,7 @@ export default function Changelog() {
     <>
       <SiteNav variant="app" />
       <div id="main" tabIndex={-1} className="mx-auto w-full max-w-3xl px-4 py-8 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground sm:px-6">
-        <h1 className="mt-6 text-4xl font-semibold tracking-tight sm:text-5xl">Changelog</h1>
+        <h1 className="font-voice mt-6 text-5xl tracking-tight sm:text-6xl">Changelog</h1>
       <div className="mt-10 grid gap-4">
         {ENTRIES.map((e) => (
           <article key={e.v} className="rounded-2xl border border-border bg-surface p-6 shadow-raised">

@@ -174,7 +174,7 @@ export default function Product() {
                 <header className="mt-5">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+                      <h1 className="font-voice text-[34px] leading-tight text-foreground">
                         {target.productName}
                       </h1>
                       <p className="mt-1 text-sm text-muted tabular-nums">
@@ -211,22 +211,32 @@ export default function Product() {
                   </section>
                 )}
 
-                {/* Price hero */}
+                {/* Price hero — the figure in mono, the caption in words */}
                 <section aria-label="Last validated price" className="mt-6">
-                  <p className="text-[13px] text-muted">Last validated price</p>
+                  <p className="font-data text-[11px] tracking-[0.14em] text-muted uppercase">
+                    Last validated price
+                  </p>
                   {target.latest ? (
-                    <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                      <span aria-hidden className="text-2xl font-medium text-muted">
+                    <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-2">
+                      <span
+                        aria-hidden
+                        className="font-data text-xl text-muted"
+                      >
                         ₹
                       </span>
                       <Odometer
                         value={target.latest.price}
-                        className="text-[44px] leading-none font-semibold tracking-tight text-foreground"
+                        className="font-data text-[52px] leading-none font-semibold text-foreground"
                       />
-                      <span className="rounded-full border border-border bg-surface px-2.5 py-1 text-[13px] font-medium text-foreground tabular-nums">
-                        {target.latest.stock}
+                      {/* The stock count never floats as a naked number —
+                          the chip always says what it counts. */}
+                      <span className="font-data rounded-full border border-border bg-surface px-2.5 py-1 text-[12px] tracking-wide text-muted uppercase tabular-nums">
+                        stock{" "}
+                        <span className="font-semibold text-foreground">
+                          {target.latest.stock}
+                        </span>
                       </span>
-                      <span className="text-sm text-muted">
+                      <span className="font-data text-[13px] text-muted">
                         observed <RelativeTime date={target.latest.observedAt} />
                       </span>
                     </div>
@@ -243,7 +253,7 @@ export default function Product() {
                 {/* Flat fact band — no nested tiles */}
                 <dl className="mt-6 grid grid-cols-2 gap-y-4 border-y border-border bg-surface px-5 py-4 sm:grid-cols-4">
                   <div>
-                    <dt className="text-[12px] tracking-wide text-muted uppercase">Last success</dt>
+                    <dt className="font-data text-[11px] tracking-[0.12em] text-muted uppercase">Last success</dt>
                     <dd className="mt-1 text-sm font-semibold text-foreground">
                       {/* The LAST ATTEMPT may have failed — this label must
                           point at the newest validated observation, not the
@@ -258,19 +268,19 @@ export default function Product() {
                     </dd>
                   </div>
                   <div className="sm:border-l sm:border-border sm:pl-5">
-                    <dt className="text-[12px] tracking-wide text-muted uppercase">Next scrape</dt>
+                    <dt className="font-data text-[11px] tracking-[0.12em] text-muted uppercase">Next scrape</dt>
                     <dd className="mt-1 text-sm font-semibold text-foreground tabular-nums">
                       {nextScrapeIn(target.lastScrape?.attemptedAt, target.scrapeIntervalHours)}
                     </dd>
                   </div>
                   <div className="sm:border-l sm:border-border sm:pl-5">
-                    <dt className="text-[12px] tracking-wide text-muted uppercase">Interval</dt>
+                    <dt className="font-data text-[11px] tracking-[0.12em] text-muted uppercase">Interval</dt>
                     <dd className="mt-1 text-sm font-semibold text-foreground tabular-nums">
                       every {target.scrapeIntervalHours ?? 2} h
                     </dd>
                   </div>
                   <div className="sm:border-l sm:border-border sm:pl-5">
-                    <dt className="text-[12px] tracking-wide text-muted uppercase">Observations</dt>
+                    <dt className="font-data text-[11px] tracking-[0.12em] text-muted uppercase">Observations</dt>
                     <dd className="mt-1 text-sm font-semibold text-foreground tabular-nums">
                       {history.length}
                     </dd>
@@ -304,14 +314,14 @@ export default function Product() {
                       max={168}
                       value={intervalHours}
                       onChange={(e) => setIntervalHours(Number(e.target.value))}
-                      className="h-10 w-16 rounded-lg border border-border bg-background px-2 text-center text-foreground tabular-nums"
+                      className="font-data h-10 w-16 rounded-lg border border-border bg-background px-2 text-center text-foreground tabular-nums"
                     />{" "}
                     h
                   </label>
                   <button
                     type="submit"
                     disabled={savingInterval}
-                    className="h-10 rounded-full border border-border px-3 font-medium text-foreground hover:bg-foreground/10 disabled:opacity-50"
+                    className="h-10 rounded-full bg-foreground px-4 font-medium text-background hover:opacity-90 disabled:opacity-50"
                   >
                     {savingInterval ? "Saving…" : "Save"}
                   </button>
@@ -348,7 +358,7 @@ export default function Product() {
                     <div className="mt-3 overflow-x-auto">
                       <table className="w-full min-w-[420px] text-sm">
                         <thead>
-                          <tr className="text-left text-[13px] text-muted">
+                          <tr className="font-data text-left text-[11px] tracking-[0.12em] text-muted uppercase">
                             <th scope="col" className="py-1.5 pr-3 font-medium">Observed</th>
                             <th scope="col" className="py-1.5 pr-3 font-medium">Price</th>
                             <th scope="col" className="py-1.5 font-medium">Stock</th>
@@ -381,7 +391,7 @@ export default function Product() {
                     <div className="mt-3 overflow-x-auto">
                       <table className="w-full min-w-[480px] text-sm">
                         <thead>
-                          <tr className="text-left text-[13px] text-muted">
+                          <tr className="font-data text-left text-[11px] tracking-[0.12em] text-muted uppercase">
                             <th scope="col" className="py-1.5 pr-3 font-medium">#</th>
                             <th scope="col" className="py-1.5 pr-3 font-medium">Attempted</th>
                             <th scope="col" className="py-1.5 pr-3 font-medium">Outcome</th>

@@ -132,7 +132,7 @@ export function TargetCard({
     >
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="truncate text-base font-semibold tracking-tight text-foreground">
+          <h3 className="font-voice truncate text-[19px] leading-snug text-foreground">
             {target.productName}
           </h3>
           <p className="text-[13px] text-muted tabular-nums">
@@ -153,15 +153,17 @@ export function TargetCard({
       <div className="mt-4">
         {/* Honest label: after a failed attempt this value is the LAST
             validated observation, not a live price. */}
-        <p className="text-[13px] text-muted">Last validated price</p>
+        <p className="font-data text-[11px] tracking-[0.14em] text-muted uppercase">
+          Last validated price
+        </p>
         {target.latest ? (
-          <div className="mt-1 flex items-baseline gap-1.5">
-            <span aria-hidden className="text-xl font-medium text-muted">
+          <div className="mt-1.5 flex items-baseline gap-1.5">
+            <span aria-hidden className="font-data text-base text-muted">
               ₹
             </span>
             <Odometer
               value={target.latest.price}
-              className="text-[34px] leading-none font-semibold tracking-tight text-foreground"
+              className="font-data text-[34px] leading-none font-semibold text-foreground"
             />
           </div>
         ) : (
@@ -171,13 +173,13 @@ export function TargetCard({
 
       <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
         <div>
-          <dt className="text-[13px] text-muted">Stock</dt>
+          <dt className="font-data text-[11px] tracking-[0.12em] text-muted uppercase">Stock</dt>
           <dd className="font-medium text-foreground tabular-nums">
             {target.latest ? target.latest.stock : "no data"}
           </dd>
         </div>
         <div>
-          <dt className="text-[13px] text-muted">Last success</dt>
+          <dt className="font-data text-[11px] tracking-[0.12em] text-muted uppercase">Last success</dt>
           <dd className="font-medium text-foreground">
             {target.latest ? (
               <RelativeTime date={target.latest.observedAt} />
@@ -187,7 +189,7 @@ export function TargetCard({
           </dd>
         </div>
         <div className="col-span-2">
-          <dt className="text-[13px] text-muted">Last scrape</dt>
+          <dt className="font-data text-[11px] tracking-[0.12em] text-muted uppercase">Last scrape</dt>
           <dd className="font-medium text-foreground">
             {target.lastScrape ? (
               <>
@@ -240,14 +242,14 @@ export function TargetCard({
             max={168}
             value={intervalHours}
             onChange={(e) => setIntervalHours(Number(e.target.value))}
-            className="h-10 w-16 rounded-lg border border-border bg-background px-2 text-center text-foreground tabular-nums"
+            className="font-data h-10 w-16 rounded-lg border border-border bg-background px-2 text-center text-foreground tabular-nums"
           />{" "}
           h
         </label>
         <button
           type="submit"
           disabled={savingInterval}
-          className="h-10 rounded-full border border-border px-3 font-medium text-foreground hover:bg-foreground/10 disabled:opacity-50"
+          className="h-10 rounded-full bg-foreground px-4 font-medium text-background hover:opacity-90 disabled:opacity-50"
         >
           {savingInterval ? "Saving…" : "Save"}
         </button>
@@ -341,7 +343,7 @@ export function TargetCard({
             <div className="overflow-x-auto">
             <table className="w-full min-w-[420px] text-sm">
               <thead>
-                <tr className="text-left text-[13px] text-muted">
+                <tr className="font-data text-left text-[11px] tracking-[0.12em] text-muted uppercase">
                   <th scope="col" className="py-1.5 pr-3 font-medium">Observed</th>
                   <th scope="col" className="py-1.5 pr-3 font-medium">Price</th>
                   <th scope="col" className="py-1.5 font-medium">Stock</th>
@@ -371,7 +373,7 @@ export function TargetCard({
             <div className="overflow-x-auto">
             <table className="w-full min-w-[480px] text-sm">
               <thead>
-                <tr className="text-left text-[13px] text-muted">
+                <tr className="font-data text-left text-[11px] tracking-[0.12em] text-muted uppercase">
                   <th scope="col" className="py-1.5 pr-3 font-medium">#</th>
                   <th scope="col" className="py-1.5 pr-3 font-medium">Attempted</th>
                   <th scope="col" className="py-1.5 pr-3 font-medium">Outcome</th>
