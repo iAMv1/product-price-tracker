@@ -37,3 +37,37 @@ jobs:
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
+  # CD (spec line 65): tests green -> ship the frontend to production.
+  # Requires VERCEL_TOKEN / VERCEL_ORG_ID / VERCEL_PROJECT_ID repo secrets;
+  # token scopes the deployment to this project only.
+  deploy:
+    needs: [backend, frontend]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - name: Pull Vercel project settings
+        working-directory: frontend
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: npx -y vercel@57 pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Build (prebuilt)
+        working-directory: frontend
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: npx -y vercel@57 build --prod --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Deploy to production
+        working-directory: frontend
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: npx -y vercel@57 deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
