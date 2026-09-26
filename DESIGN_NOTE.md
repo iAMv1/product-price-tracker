@@ -82,6 +82,12 @@ fixtures pin store shapes; headed script narrates retries; CSV reconciles
 
 ## 10. AI tool usage
 
+Disclosure: the codebase was written in an AI agent session (Claude models,
+OpenCode harness) under human direction; the human reviewed every change,
+ran the test suites, deployed, and verified live behavior. Beyond writing
+code, the AI's own errors below are listed as the assignment requires —
+each was caught by review, tests, or production evidence, never assumed away.
+
 - Initial mistake #1 — 32-char hashes: suggested short password/hash truncations.
   Wrong: collision-prone, weak auth. Detected in review; corrected to full
   SHA-256 timing-safe compare (`internal.ts`). Verified by 401 tests.
@@ -97,10 +103,23 @@ fixtures pin store shapes; headed script narrates retries; CSV reconciles
 - Initial mistake #5 — IPv6-only host: assumed direct DB host reachable from
   Render free (no IPv6 egress → ENETUNREACH). Detected via DoH A/AAAA split;
   corrected to `ap-northeast-2` pooler host. Verified by seed 3/3.
+- Initial mistake #6 — cron misdiagnosis: AI first blamed the cron-job.org job
+  configuration for missing scheduled runs. Wrong: the job fired on schedule
+  every time; the failure was Render cold-start — the load balancer answered
+  with an HTML error page larger than cron-job.org's output cap, so the
+  request never reached the backend. Detected by Render CLI request logs
+  (zero lines inside the fire window, boot only on manual traffic) and
+  cron-job.org issue #438; corrected with a 5-minute keep-alive ping
+  (`.github/workflows/keep-alive.yml`) — the assignment explicitly says
+  "keep the instance warm if needed".
 
 ## 11. Known limitations
 
 - Free-tier cold starts (~1–5s); cron keeps data fresh, not instant.
+- A cron fire against a cold instance dies at Render's load balancer (HTML
+  error page exceeds cron-job.org's output limit, so nothing reaches the
+  backend and no run is recorded). Mitigated by the 5-minute keep-alive
+  ping; history shows whether unattended runs are landing at every 2h fire.
 - Interval skips mean sparse histories for high-interval targets by design.
 - Headed demo is local-only (Render skips browser download).
 - DB password traveled through chat/shell during ops: rotate after submission.

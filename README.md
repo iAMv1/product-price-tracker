@@ -26,31 +26,16 @@ look healthy. Failed attempts stay visible.
 ## Repository layout
 
 ```text
-├── SOUL.md                 agent operating persona
-├── project/                specification and architecture
-│   ├── PRODUCT_ARCHITECTURE_AND_FLOW.md   ← system flow, data model, CSV contract
-│   ├── SYSTEM_MODEL.md                    invariants, state machines, truth hierarchy
-│   ├── PROJECT_SPEC.md                    requirements as contracts
-│   ├── ARCHITECTURE.md                    control / sensing / evidence boundaries
-│   └── IMPLEMENTATION_PLAN.md             evidence-driven build phases
-├── harness/                agent control surface
-│   ├── STATE.md                           ← read this first: where the project stands
-│   ├── TASKS.yaml                         dependency-aware task backlog
-│   ├── AGENTIC_HARNESS.md                 bootstrap, evidence ladder, memory protocol
-│   └── AGENT_RULES.md                     repository guardrails
-├── knowledge/              durable memory
-│   ├── OBSERVATIONS.md                    what we established by observation
-│   ├── DECISIONS.md                       choices, alternatives and why
-│   ├── FAILURES.md                        approaches that did not work
-│   └── VERIFICATION_LOG.md                what was actually run, and what it proved
-├── artifacts/              diagrams and evidence
-├── backend/                API + scrape orchestrator + scraper engine
-├── frontend/               dashboard
-└── db/                     migrations and schema
+├── .github/workflows/
+│   ├── ci.yml                    CI: typecheck + tests + build (both packages)
+│   └── keep-alive.yml            5-min /health ping — keeps free tier awake
+├── backend/          API + scrape orchestrator + scraper engine (Node/Express/TS)
+├── frontend/         React dashboard (Vite)
+├── db/               migrations and schema
+├── render.yaml       Render deploy config
+├── DESIGN_NOTE.md    reliability, trade-offs, AI usage disclosure
+└── README.md         this file
 ```
-
-Start with `harness/STATE.md`. It names the active task, the invariants, and what is
-already known versus still unknown.
 
 ## Local setup
 
@@ -93,6 +78,8 @@ same-origin and CORS only matters in production.
 | `DATABASE_URL` | Supabase Postgres connection string |
 | `CRON_SECRET` | Bearer token required by `/api/internal/*` |
 | `CORS_ORIGINS` | Comma-separated allowed browser origins |
+| `SENDGRID_API_KEY` | optional — enables email alerts (in-app alerts work without it) |
+| `ALERT_TO` | optional — alert recipient address |
 
 `frontend/.env`
 
@@ -117,6 +104,12 @@ The backend refuses to start in production when `DATABASE_URL` or `CRON_SECRET` 
 
 - External cron POSTs `/api/internal/scrape-all` every 2 hours (12 runs/day).
 - No in-process loop anywhere: free-tier instances may sleep between invocations.
+- Keep-alive: `.github/workflows/keep-alive.yml` pings `GET /health` every
+  5 minutes so the instance is awake when the 2h cron fires. (A cold instance
+  makes Render's load balancer answer with an HTML error page that
+  cron-job.org rejects as "output too large" — the scheduled scrape would
+  never reach the backend. The assignment says: "keep the instance warm if
+  needed.") Scraping itself stays cron-job.org-only.
 - Each invocation scrapes every active target once to completion (max 3 attempts,
   backoff+jitter between transient failures), then writes the run summary.
 - Per-product frequency (bonus): each target carries `scrape_interval_hours`
@@ -145,6 +138,16 @@ Full recording script: `backend/tools/HEADED_RECORDING.md`.
 | Configurable scrape frequency per product (1–168h, scheduler respects it) | `scrape_interval_hours`, card control |
 | Multi-option scrape in one run | `POST /api/tracked-products/by-product`, picker checkboxes |
 | CI/CD | `.github/workflows/ci.yml` (backend typecheck+test+build, frontend typecheck+build) |
+
+## Third-party code
+
+UI components adapted from [xevrion/ui-lab](https://lab.xevrion.dev/)
+(**MIT License**): toast stack, dropdown menu, segmented control, tooltip
+group, theme toggle, expanding search, odometer, sparkline, relative time,
+scroll reveal. Every adapted file carries its source path in a header comment;
+all project code around them is original. `motion` and other MIT npm
+dependencies are listed in the lockfiles. See `DESIGN_NOTE.md` for the full
+AI-usage disclosure required by the assignment guidelines.
 
 ## Status
 
