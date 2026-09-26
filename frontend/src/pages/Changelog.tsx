@@ -2,6 +2,18 @@ import { SiteNav } from "../components/site-nav";
 
 const ENTRIES: Array<{ v: string; date: string; items: string[] }> = [
   {
+    v: "v0.5 — Control plane & evidence integrity",
+    date: "2026-09-26",
+    items: [
+      "Scheduler dispatches: durable run claim, 202 fast reply, single-flight lease, heartbeats with stale-run recovery (abandoned, never stuck running).",
+      "Evidence integrity: composite history provenance, deterministic latest view, temporal indexes, soft untrack that preserves attempts and history.",
+      "Seeded demo targets reject public removal (403 demo_protected); server messages now reach the UI error paths.",
+      "Retry policy unified at 1s/2s/4s; recording drives the real runner through a tools-only fault seam (attempt 1: 503 → retried → success).",
+      "Health reports configured vs reachable (SELECT 1); search caches listing pages; PoW time budget; parser rejects impossible numerics.",
+      "All five run states render deliberately; docs describe dispatch, soft delete, and the one Bearer-authenticated route accurately.",
+    ],
+  },
+  {
     v: "v0.4 — Review hardening",
     date: "2026-09-26",
     items: [
@@ -24,7 +36,7 @@ const ENTRIES: Array<{ v: string; date: string; items: string[] }> = [
     v: "v0.2 — All six bonuses",
     date: "2026-09-25",
     items: [
-      "Price-drop / back-in-stock alerts, multi-product overview, change detection.",
+      "Price-drop / back-in-stock alerts, multi-product overview, change detection (failure-based structural drift from terminal error codes).",
       "Per-product scrape frequency, multi-option one-run tracking, CI workflow.",
       "Headed observable runner with recording guide.",
     ],

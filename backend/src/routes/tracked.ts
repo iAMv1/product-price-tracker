@@ -6,8 +6,11 @@ import {
   getHistory,
   getLatestValidated,
   getTrackedProduct,
+  isUniqueViolation,
   listActiveTrackedProducts,
+  reactivateTrackedByIdentity,
   updateTrackedInterval,
+  type TrackedProductRow,
 } from '../persistence/repositories.js';
 import { rowToTarget, runAllTargets } from '../scraper/runner.js';
 import {
@@ -111,7 +114,7 @@ trackedRouter.post('/', async (req: Request, res: Response) => {
   const interval = clampIntervalHours(
     typeof body['scrapeIntervalHours'] === 'number' ? body['scrapeIntervalHours'] : 2,
   );
-  let row;
+  let row: TrackedProductRow;
   try {
     row = await createTrackedProduct(db, {
       storeProductId,
@@ -120,24 +123,35 @@ trackedRouter.post('/', async (req: Request, res: Response) => {
       productUrl: url,
       scrapeIntervalHours: interval,
     });
-  } catch {
-    // Duplicate identity: idempotent re-track. Return the existing target.
+  } catch (error) {
+    // Duplicate identity: ONLY a unique violation lands here — a connection
+    // outage or constraint bug must surface, not masquerade as "existing".
+    if (!isUniqueViolation(error)) throw error;
     const existing = (await listActiveTrackedProducts(db)).find(
       (candidate) =>
         candidate.store_product_id === storeProductId &&
         candidate.selected_option === selectedOption,
     );
-    if (existing === undefined) throw new Error('duplicate insert without existing row');
-    res.json({
-      id: existing.id,
-      storeProductId: existing.store_product_id,
-      productName: existing.product_name,
-      selectedOption: existing.selected_option,
-      productUrl: existing.product_url,
-      deduped: true,
-      firstScrape: null,
+    if (existing !== undefined) {
+      res.json({
+        id: existing.id,
+        storeProductId: existing.store_product_id,
+        productName: existing.product_name,
+        selectedOption: existing.selected_option,
+        productUrl: existing.product_url,
+        deduped: true,
+        firstScrape: null,
+      });
+      return;
+    }
+    // Dormant row from a soft untrack: reactivate (evidence stays attached).
+    const reactivated = await reactivateTrackedByIdentity(db, {
+      storeProductId,
+      selectedOption,
+      productUrl: url,
     });
-    return;
+    if (reactivated === null) throw new Error('duplicate insert without existing row');
+    row = reactivated;
   }
 
   // Immediate first scrape: seeds history + log without waiting for cron.
@@ -181,26 +195,37 @@ trackedRouter.patch('/:id', async (req: Request, res: Response) => {
     });
     return;
   }
+  const current = await getTrackedProduct(db, id);
+  if (current === null) {
+    res.status(404).json({ error: 'not_found', message: 'tracked product not found' });
+    return;
+  }
+  // Seeded demo targets keep the shared submission set intact: open writes
+  // may reconfigure them, never retire them.
+  if (current.is_demo_seeded && hasActive && body['isActive'] === false) {
+    res.status(403).json({
+      error: 'demo_protected',
+      message:
+        'This seeded demo product is protected so the shared dashboard keeps its tracked set — track your own product to try pausing.',
+    });
+    return;
+  }
   if (hasActive) {
-    const updated = await db.query(
+    await db.query(
       'UPDATE tracked_products SET is_active = $1, updated_at = now() WHERE id = $2',
       [body['isActive'], id],
     );
-    if ((updated.rowCount ?? 0) === 0) {
-      res.status(404).json({ error: 'not_found', message: 'tracked product not found' });
-      return;
-    }
   }
   if (hasInterval) {
     const hours = clampIntervalHours(body['scrapeIntervalHours']);
-    const ok = await updateTrackedInterval(db, id, hours);
-    if (!ok) {
-      res.status(404).json({ error: 'not_found', message: 'tracked product not found' });
-      return;
-    }
+    await updateTrackedInterval(db, id, hours);
   }
-  const current = await getTrackedProduct(db, id);
-  res.json({ id, isActive: current?.is_active ?? body['isActive'], scrapeIntervalHours: current?.scrape_interval_hours ?? 2 });
+  const after = await getTrackedProduct(db, id);
+  res.json({
+    id,
+    isActive: after?.is_active ?? false,
+    scrapeIntervalHours: after?.scrape_interval_hours ?? 2,
+  });
 });
 
 trackedRouter.delete('/:id', async (req: Request, res: Response) => {
@@ -211,13 +236,26 @@ trackedRouter.delete('/:id', async (req: Request, res: Response) => {
     res.status(400).json({ error: 'bad_request', message: 'id must be a UUID' });
     return;
   }
-  // Hard delete cascades to attempts + history (schema ON DELETE CASCADE).
-  // Explicit user choice; the audit trail for REMAINING targets is untouched.
-  const deleted = await db.query('DELETE FROM tracked_products WHERE id = $1', [id]);
-  if ((deleted.rowCount ?? 0) === 0) {
+  const row = await getTrackedProduct(db, id);
+  if (row === null) {
     res.status(404).json({ error: 'not_found', message: 'tracked product not found' });
     return;
   }
+  if (row.is_demo_seeded) {
+    res.status(403).json({
+      error: 'demo_protected',
+      message:
+        'This seeded demo product is protected so the shared dashboard keeps its tracked set — track your own product to try untracking.',
+    });
+    return;
+  }
+  // Untrack = soft delete: the target leaves the dashboard but its attempts
+  // and history stay (evidence is a durable fact). Re-tracking the same
+  // identity reactivates the row. Permanent purge is an administrative act.
+  await db.query(
+    'UPDATE tracked_products SET is_active = FALSE, updated_at = now() WHERE id = $1',
+    [id],
+  );
   res.status(204).end();
 });
 
@@ -258,7 +296,14 @@ trackedRouter.post('/:id/scrape', async (req: Request, res: Response) => {
   const db = await requireDb(req, res);
   if (db === null) return;
   const { scrape } = readDeps(req);
-  const row = await getTrackedProduct(db, routeParam(req, 'id'));
+  const id = routeParam(req, 'id');
+  // Same guard as history/log routes: garbage ids must not reach the pg
+  // uuid cast and burn a 500.
+  if (!isUuid(id)) {
+    res.status(400).json({ error: 'bad_request', message: 'id must be a UUID' });
+    return;
+  }
+  const row = await getTrackedProduct(db, id);
   if (row === null) {
     res.status(404).json({ error: 'not_found', message: 'tracked product not found' });
     return;

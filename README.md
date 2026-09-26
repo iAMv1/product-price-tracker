@@ -89,7 +89,10 @@ same-origin and CORS only matters in production.
 | `VITE_BACKEND_ORIGIN` | Dev proxy target, default `http://localhost:4000` |
 
 The backend refuses to start in production when `DATABASE_URL` or `CRON_SECRET` is missing.
-`GET /health` reports which integrations are configured without ever echoing a credential.
+`GET /health` reports which integrations are configured and whether the database
+answers right now (`SELECT 1`, 2s budget) without ever echoing a credential. It
+stays 200 while the process serves, so a DB blip never triggers a restart storm —
+the body carries the dependency state instead.
 
 ## Live deployment
 
@@ -119,13 +122,34 @@ The backend refuses to start in production when `DATABASE_URL` or `CRON_SECRET` 
      entirely, the scrape still lands inside the same 2-hour window. The
      per-product due-check turns any overlap into an honest `skipped` no-op,
      so the rescue never fabricates work.
-- Each invocation scrapes every active target once to completion (max 3 attempts,
-  backoff+jitter between transient failures), then writes the run summary.
+- Dispatch, not block: an invocation first recovers runs orphaned by a dead
+  process (stale heartbeat → `abandoned`), then takes a single-flight lease —
+  an overlapping scheduler edge answers honestly with `lease-held` instead of
+  double-scraping — then persists the due-target run row, replies `202`
+  immediately (cron-job.org's 30s request timeout never rides on the batch),
+  and executes in the background with per-target heartbeats plus lease
+  renewal. `?wait=true` keeps synchronous behavior for tests/ops. A crash
+  mid-run stops the heartbeat; the next invocation marks the run `abandoned`
+  (visible evidence) and the due-check re-scrapes whatever never recorded an
+  attempt.
+- Each target runs to completion (max 3 attempts, 1s/2s/4s backoff + jitter
+  between transient failures), then the run summary is written. Targets are
+  processed serially on purpose: upstream reliability matters more than
+  throughput at assignment scale, and parallel bursts invite the storefront's
+  rate limiter.
 - Per-product frequency (bonus): each target carries `scrape_interval_hours`
-  (default 2, range 1–168, editable on its card). Targets scraped more recently
-  than their interval are skipped honestly (`skipped` count in the response).
+  (default 2, range 1–168, editable on its card). Cadence policy (explicit):
+  due-ness is measured from the most recent attempt of ANY outcome, so a
+  manual `Scrape now` legitimately resets that target's window; targets
+  scraped more recently than their interval are skipped honestly (`skipped`
+  count in the response).
 - Manual triggers: `Scrape now` per card, `POST /api/tracked-products/:id/scrape`,
   and multi-option `POST /api/tracked-products/by-product`.
+- Untrack is a soft delete: the card leaves the dashboard while attempts and
+  history stay (CSV still exports them); re-tracking the same identity
+  reactivates the row. Seeded demo targets are protected from public removal
+  (403 `demo_protected`) so the shared submission set cannot be emptied —
+  everything visitors track themselves stays fully open.
 
 ## Headed observable run
 
@@ -161,6 +185,6 @@ AI-usage disclosure required by the assignment guidelines.
 ## Status
 
 Production live: Render backend (`database:true`), Vercel dashboard, Supabase
-schema (4 tables + 2 views) seeded with 3 tracked targets carrying real
+schema (5 tables + 2 views) seeded with 3 tracked targets carrying real
 scrapes; CSV export verified with honest retried rows. cron-job.org job fires
 every 2 hours; headed recording + submission form close out delivery.

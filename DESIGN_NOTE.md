@@ -54,24 +54,42 @@ an observability wrapper (`tools/headed-scrape.ts`) for the recording.
 ## 6. Scheduling
 
 External 2h trigger (`0 */2 * * *`) because free-tier backends sleep; no
-in-process loop exists. Per-product `scrape_interval_hours` (1–168, default 2)
-skips recently-scraped targets honestly (`skipped` in response). Two Supabase
-pg_cron + pg_net jobs backstop the trigger: a `/health` keep-alive every 10
-minutes (`2-59/10 * * * *`) and a rescue re-fire of `scrape-all` at :50 past
-every even hour (`50 */2 * * *`) — overlap degrades to an honest no-op.
+in-process loop exists. Each invocation is a **dispatch**, not a blocking
+batch: recover runs orphaned by a dead process (stale heartbeat →
+`abandoned`), take a single-flight lease (an overlapping edge answers
+`lease-held` instead of double-scraping), persist the due-target run row,
+reply `202` inside the cron edge's 30s budget, then execute in the
+background with per-target heartbeats + lease renewal (`?wait=true` keeps
+synchronous semantics for tests/ops). Per-product `scrape_interval_hours`
+(1–168, default 2) skips recently-scraped targets honestly (`skipped` in
+response); cadence policy is explicit — due-ness is measured from the most
+recent attempt of any outcome, so a manual scrape resets that target's
+window. Two Supabase pg_cron + pg_net jobs backstop the trigger: a
+`/health` keep-alive every 10 minutes (`2-59/10 * * * *`) and a rescue
+re-fire of `scrape-all` at :50 past every even hour (`50 */2 * * *`) —
+lease + due-check degrade any overlap to an honest no-op.
 
 ## 7. Data integrity
 
 Attempts (every network try, nullable price/stock) vs history (successes only,
 UNIQUE FK to producing attempt). CSV = LEFT JOIN view: non-success rows empty
 by construction. Per-column CHECK (stronger than spec formula) rejects
-partial-value rows.
+partial-value rows. History provenance is composite —
+`(scrape_attempt_id, tracked_product_id)` must match one
+`(id, tracked_product_id)` pair on `scrape_attempts`, so a history row can
+never credit another product's attempt. Untrack is soft (`is_active=false`):
+evidence survives it and re-tracking reactivates the row; seeded demo targets
+additionally reject public removal (`403 demo_protected`) so the shared
+submission set cannot be emptied.
 
 ## 8. Observability and evidence
 
-Run IDs group invocations; attempt rows carry number/timestamp/outcome/code;
-fixtures pin store shapes; headed script narrates retries; CSV reconciles
-1:1 with the log.
+Run IDs group invocations; run lifecycle is explicit
+(`queued/running/completed/failed/abandoned` + heartbeat) so a dead process
+leaves a visible `abandoned` row instead of one stuck `running` forever;
+attempt rows carry number/timestamp/outcome/code; fixtures pin store shapes;
+headed script narrates retries through the real runner; CSV reconciles 1:1
+with the log.
 
 ## 9. Trade-offs
 

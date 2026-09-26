@@ -1,6 +1,6 @@
 import { SiteNav } from "../components/site-nav";
 
-/** Product docs: setup, schedule, env, API, auth/Google setup. */
+/** Product docs: setup, schedule, env, API, tracking, headed run. Only the scheduler route is Bearer-authenticated; public demo writes are open by design — no user sessions. */
 const SECTIONS: Array<{ id: string; title: string; body: string[]; code?: string }> = [
   {
     id: "setup",
@@ -29,7 +29,8 @@ const SECTIONS: Array<{ id: string; title: string; body: string[]; code?: string
     id: "api",
     title: "API",
     body: [
-      "Public reads: GET /health, /api/products/search?q=, /api/products/:id, /api/tracked-products (+/:id/history, /:id/scrape-log), /api/alerts, /api/change-events, /api/export.csv. Open writes (public demo — no user accounts by design): POST/PATCH/DELETE /api/tracked-products, POST /:id/scrape, POST /by-product. Scheduler: POST /api/internal/scrape-all (Bearer CRON_SECRET, rate-limited 30 / 15 min).",
+      "Public reads: GET /health, /api/products/search?q=, /api/products/:id, /api/tracked-products (+/:id/history, /:id/scrape-log), /api/alerts, /api/change-events (failure-based structural drift flags), /api/export.csv. Open writes (public demo — no user accounts by design): POST/PATCH/DELETE /api/tracked-products, POST /:id/scrape, POST /by-product. Untrack is a soft delete — attempts and history stay — and seeded demo targets are protected from public removal (403 demo_protected, server message shown in the UI).",
+      "Scheduler entry now dispatches: POST /api/internal/scrape-all (Bearer CRON_SECRET, rate-limited 30 / 15 min) recovers stale runs, takes a single-flight lease, persists the due run, replies 202, then executes with heartbeats — ?wait=true for synchronous mode; overlapping invocations no-op honestly while the lease is held. Health: GET /health stays 200 while serving, and its body distinguishes configured vs reachable (SELECT 1, 2s budget).",
     ],
   },
   {
@@ -53,7 +54,7 @@ export default function Docs() {
       <SiteNav variant="app" />
       <div id="main" tabIndex={-1} className="mx-auto w-full max-w-3xl px-4 py-8 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground sm:px-6">
         <h1 className="mt-6 text-4xl font-semibold tracking-tight sm:text-5xl">Docs</h1>
-      <p className="mt-3 text-muted">Everything needed to run, schedule, and authenticate the tracker.</p>
+      <p className="mt-3 text-muted">Everything needed to run and schedule the tracker — including its one Bearer-authenticated route. Public demo writes stay open; there are no user sessions.</p>
       <div className="mt-10 grid gap-10">
         {SECTIONS.map((s) => (
           <section key={s.id} id={s.id}>

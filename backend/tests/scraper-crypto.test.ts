@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { DR } from '../src/scraper/store/constants.js';
+import { DR, MAX_POW_NONCE } from '../src/scraper/store/constants.js';
 import {
   decodeQuotePayload,
   derivedFor,
@@ -67,6 +67,28 @@ describe('store crypto (SCRAPE-001)', () => {
     expect(() => solveProofOfWork('test-salt', 8, 10)).toThrow(
       /budget exhausted/,
     );
+  });
+
+  it('solveProofOfWork fails a hard puzzle on the 0ms wall-clock budget', () => {
+    // Difficulty 8 = 16^8 expected hashes: without a time budget this would
+    // run to the 100M nonce cap (minutes of CPU). 0ms must throw before the
+    // first hash, with the same error style the handshake maps to
+    // `pow_budget_exhausted`.
+    const startedAt = Date.now();
+    expect(() => solveProofOfWork('test-salt', 8, MAX_POW_NONCE, 0)).toThrow(
+      /budget exhausted/,
+    );
+    expect(Date.now() - startedAt).toBeLessThan(100);
+  });
+
+  it('solveProofOfWork honours a 1ms wall-clock budget quickly', () => {
+    // Difficulty 10 (16^10 expected hashes) cannot be solved inside 1ms, so
+    // this can only exit through the time budget.
+    const startedAt = Date.now();
+    expect(() => solveProofOfWork('test-salt', 10, MAX_POW_NONCE, 1)).toThrow(
+      /time budget exhausted/,
+    );
+    expect(Date.now() - startedAt).toBeLessThan(500);
   });
 
   it('decodeQuotePayload round-trips and maps single-letter keys', () => {

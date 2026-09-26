@@ -14,7 +14,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "headed:scrape": "tsx tools/headed-scrape.ts 2626 o1 2229 o2 2092 o2"
+    "headed:scrape": "tsx tools/headed-scrape.ts 2626 o1 2229 o2 2092 o2",
+    "record:headed": "tsx tools/recording-run.ts"
   },
   "dependencies": {
     "cors": "^2.8.6",

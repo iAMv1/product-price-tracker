@@ -166,16 +166,36 @@ function asString(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
 }
 
-function asNumber(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+/**
+ * Pagination counters must be whole numbers >= 1: the store reports
+ * `page/perPage/totalPages/count` as integers (fixture: 1/24/40/960), so a
+ * fractional, NaN or negative value is not a real page shape. Rejecting here
+ * routes the payload into the parser's EXISTING throw → caller maps it to
+ * `handshake_drift`; no new error channel.
+ */
+function asPositiveInt(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1
+    ? value
+    : null;
+}
+
+/**
+ * Store ids decode from numeric strings on the wire ("2626" → 2626), so
+ * anything but a whole number >= 0 is a shape error. Id 0 stays allowed:
+ * it is the caller's 404/`item_not_found` path to reject, not ours.
+ */
+function asNonNegativeInt(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0
+    ? value
+    : null;
 }
 
 export function parseListingsPage(json: unknown): ListingsPage {
   if (!isRecord(json)) throw new Error('listings page is not an object');
-  const page = asNumber(json['page']);
-  const perPage = asNumber(json['perPage']);
-  const totalPages = asNumber(json['totalPages']);
-  const count = asNumber(json['count']);
+  const page = asPositiveInt(json['page']);
+  const perPage = asPositiveInt(json['perPage']);
+  const totalPages = asPositiveInt(json['totalPages']);
+  const count = asPositiveInt(json['count']);
   const results = json['results'];
   if (page === null || perPage === null || totalPages === null || count === null)
     throw new Error('listings page is missing pagination fields');
@@ -187,7 +207,7 @@ export function parseListingsPage(json: unknown): ListingsPage {
     count,
     results: results.map((entry, index) => {
       if (!isRecord(entry)) throw new Error(`listing ${index} is not an object`);
-      const id = asNumber(entry['id']);
+      const id = asNonNegativeInt(entry['id']);
       const slug = asString(entry['slug']);
       const name = asString(entry['name']);
       if (id === null || slug === null || name === null)
@@ -205,7 +225,7 @@ export function parseListingsPage(json: unknown): ListingsPage {
 
 export function parseStoreItem(json: unknown): StoreItem {
   if (!isRecord(json)) throw new Error('item is not an object');
-  const id = asNumber(json['id']);
+  const id = asNonNegativeInt(json['id']);
   const slug = asString(json['slug']);
   const name = asString(json['name']);
   if (id === null || slug === null || name === null)

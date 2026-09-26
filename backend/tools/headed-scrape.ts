@@ -13,6 +13,7 @@
  * Headless fallback (CI): HEADLESS=1 npx tsx tools/headed-scrape.ts 2626 o1
  */
 import { chromium } from 'playwright';
+import { productUrl } from '../src/http/deps.js';
 import { scrapeProduct } from '../src/scraper/store/scrape.js';
 import { STORE_BASE_URL } from '../src/scraper/store/constants.js';
 
@@ -54,7 +55,11 @@ for (const [storeProductId, selectedOption] of pairs) {
   const maxAttempts = 3;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const t0 = Date.now();
-    const result = await scrapeProduct({ productId: storeProductId, selectedOption });
+    const result = await scrapeProduct({
+      productId: storeProductId,
+      selectedOption,
+      productUrl: productUrl(storeProductId),
+    });
     const dt = Date.now() - t0;
     if (result.ok) {
       console.log(`[headed] attempt ${attempt}: SUCCESS price=${result.price} stock=${result.stock} (${dt}ms)`);

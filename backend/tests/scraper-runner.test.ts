@@ -8,7 +8,7 @@ import {
   getHistory,
   getLatestValidated,
 } from '../src/persistence/repositories.js';
-import { backoffMs, MAX_ATTEMPTS } from '../src/scraper/retry.js';
+import { backoffMs, BACKOFF_CAP_MS, MAX_ATTEMPTS } from '../src/scraper/retry.js';
 import {
   rowToTarget,
   runAllTargets,
@@ -128,10 +128,12 @@ async function assertRetriedNeverFinal(
 }
 
 describe('retry policy (SCRAPE-002)', () => {
-  it('backs off linearly with bounded jitter', () => {
-    expect(backoffMs(1, () => 0)).toBe(300);
-    expect(backoffMs(2, () => 0)).toBe(600);
-    expect(backoffMs(1, () => 0.999)).toBeLessThan(400);
+  it('backs off exponentially (1s/2s, cap 4s) with bounded jitter', () => {
+    expect(backoffMs(1, () => 0)).toBe(1000);
+    expect(backoffMs(2, () => 0)).toBe(2000);
+    expect(backoffMs(3, () => 0)).toBe(4000);
+    expect(backoffMs(9, () => 0)).toBe(BACKOFF_CAP_MS);
+    expect(backoffMs(1, () => 0.999)).toBeLessThan(1100);
     expect(MAX_ATTEMPTS).toBe(3);
   });
 });

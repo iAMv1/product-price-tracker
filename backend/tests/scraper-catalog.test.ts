@@ -142,3 +142,60 @@ describe('catalogue layer (SCRAPE-001)', () => {
     expect(blewUp.failure.transient).toBe(true);
   });
 });
+
+describe('catalogue numeric shapes (audit item 19)', () => {
+  const captured = (): Record<string, unknown> => ({
+    ...(readRaw('api_v2_listings_p1_l24.json') as Record<string, unknown>),
+  });
+
+  it('rejects impossible pagination shapes through the existing drift path', () => {
+    // All of these surface as the SAME 'missing pagination fields' throw the
+    // route already maps to handshake_drift — no new error channel.
+    expect(() => parseListingsPage({ ...captured(), page: 1.5 })).toThrow(
+      /pagination/,
+    );
+    expect(() => parseListingsPage({ ...captured(), totalPages: -1 })).toThrow(
+      /pagination/,
+    );
+    expect(() => parseListingsPage({ ...captured(), count: NaN })).toThrow(
+      /pagination/,
+    );
+    expect(() => parseListingsPage({ ...captured(), perPage: 0 })).toThrow(
+      /pagination/,
+    );
+    expect(() => parseListingsPage({ ...captured(), totalPages: '40' })).toThrow(
+      /pagination/,
+    );
+  });
+
+  it('rejects impossible entry/item id shapes', () => {
+    const fractionalEntry = captured();
+    const results = fractionalEntry['results'] as Array<Record<string, unknown>>;
+    results[0] = { ...results[0]!, id: 26.5 };
+    expect(() => parseListingsPage(fractionalEntry)).toThrow(/id\/slug\/name/);
+
+    const negativeEntry = captured();
+    const negativeResults = negativeEntry['results'] as Array<Record<string, unknown>>;
+    negativeResults[1] = { ...negativeResults[1]!, id: -7 };
+    expect(() => parseListingsPage(negativeEntry)).toThrow(/id\/slug\/name/);
+
+    expect(() =>
+      parseStoreItem({
+        id: 1.5,
+        slug: 's',
+        name: 'n',
+        options: [{ id: 'o1', label: 'x' }],
+      }),
+    ).toThrow(/id\/slug\/name/);
+  });
+
+  it('still accepts the captured store payload and zero-safe ids', () => {
+    const page = parseListingsPage(captured());
+    expect(page.page).toBe(1);
+    expect(page.count).toBe(960);
+    const zeroId = captured();
+    const zeroResults = zeroId['results'] as Array<Record<string, unknown>>;
+    zeroResults[0] = { ...zeroResults[0]!, id: 0 };
+    expect(parseListingsPage(zeroId).results[0]?.id).toBe(0);
+  });
+});

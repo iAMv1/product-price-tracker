@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { DR, MAX_POW_NONCE } from './constants.js';
+import { DR, MAX_POW_ELAPSED_MS, MAX_POW_NONCE } from './constants.js';
 
 /**
  * Pure storefront cryptography (OBS-20260925-004). The `mr` step behaves as
@@ -55,14 +55,29 @@ export function derivedFor(
   return sha256Hex(`${DR}|derive|${salt}|${wasmOut | 0}|${fingerprintHash}`);
 }
 
-/** `xr`: hashcash-style proof of work. Throws on budget exhaustion. */
+/**
+ * `xr`: hashcash-style proof of work. Throws on budget exhaustion — either
+ * the wall-clock budget (primary guard: a storefront difficulty spike must
+ * fail in ~2s, not burn CPU for the whole nonce cap) or the iteration cap
+ * (second guard for a stalled clock). Both paths throw the SAME style of
+ * error, so the handshake call site keeps mapping any throw to
+ * `pow_budget_exhausted` with unchanged semantics (handshake.ts).
+ */
 export function solveProofOfWork(
   salt: string,
   difficulty: number,
   maxNonce: number = MAX_POW_NONCE,
+  maxElapsedMs: number = MAX_POW_ELAPSED_MS,
 ): number {
   const target = '0'.repeat(difficulty);
+  const started = Date.now();
   for (let nonce = 0; nonce <= maxNonce; nonce += 1) {
+    const elapsed = Date.now() - started;
+    if (elapsed >= maxElapsedMs) {
+      throw new Error(
+        `proof-of-work time budget exhausted after ${elapsed}ms at nonce ${nonce}`,
+      );
+    }
     if (sha256Hex(`${salt}:${nonce}`).slice(0, difficulty) === target) {
       return nonce;
     }

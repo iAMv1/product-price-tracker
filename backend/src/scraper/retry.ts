@@ -7,17 +7,27 @@
 
 /** Recommended initial policy (PROJECT_SPEC.md section 9): max 3 attempts. */
 export const MAX_ATTEMPTS = 3;
-/** Base backoff per failed attempt (the bundle client itself uses 300*n). */
-export const BACKOFF_BASE_MS = 300;
+/** Initial backoff after the first failed attempt (docs: 1s / 2s / 4s). */
+export const BACKOFF_BASE_MS = 1000;
+/** Ceiling per wait: the doubling backoff never exceeds this. */
+export const BACKOFF_CAP_MS = 4000;
 /** Jitter ceiling so a batch of targets does not retry in lockstep. */
 export const BACKOFF_JITTER_MS = 100;
 
-/** Backoff after failed attempt n. `rand` is injectable for deterministic tests. */
+/**
+ * Backoff after failed attempt n: 1000ms, 2000ms, … capped at 4000ms,
+ * plus bounded jitter. `rand` is injectable for deterministic tests.
+ * (The catalog listing walk keeps its own separate 300*n pacing — see
+ * store/catalog.ts; that is request pacing, not this retry policy.)
+ */
 export function backoffMs(
   failedAttemptNumber: number,
   rand: () => number = Math.random,
 ): number {
-  return BACKOFF_BASE_MS * failedAttemptNumber + Math.floor(rand() * BACKOFF_JITTER_MS);
+  const exponential =
+    BACKOFF_BASE_MS * 2 ** Math.max(0, failedAttemptNumber - 1);
+  const capped = Math.min(exponential, BACKOFF_CAP_MS);
+  return capped + Math.floor(rand() * BACKOFF_JITTER_MS);
 }
 
 export type Sleep = (ms: number) => Promise<void>;
