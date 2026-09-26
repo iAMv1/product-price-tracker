@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { motion } from "motion/react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
 import { TargetCard } from "../components/TargetCard";
 import { SectionTitle, SiteNav } from "../components/site-nav";
 import { ExpandingSearch } from "../components/ui/expanding-search";
@@ -33,6 +33,7 @@ type BootState =
   | { kind: "error"; message: string };
 
 export default function Dashboard() {
+  const reduceMotion = useReducedMotion();
   const [boot, setBoot] = useState<BootState>({ kind: "loading" });
   const [targets, setTargets] = useState<TrackedTarget[]>([]);
   const [targetsError, setTargetsError] = useState<string | null>(null);
@@ -41,6 +42,8 @@ export default function Dashboard() {
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
+  /** Last query that actually ran — keeps type-ahead and Enter from double-fetching. */
+  const lastSearched = useRef("");
 
   const [picked, setPicked] = useState<ProductDetail | null>(null);
   const [pickedOption, setPickedOption] = useState("");
@@ -122,25 +125,47 @@ export default function Dashboard() {
     };
   }, []);
 
-  async function runSearch(q: string) {
-    setQuery(q);
-    setPicked(null);
-    if (q.trim() === "") {
-      setHits(null);
-      setSearchError(null);
-      return;
-    }
+  async function searchCore(t: string) {
+    lastSearched.current = t;
     setSearching(true);
     setSearchError(null);
     try {
-      setHits(await searchProducts(q));
+      setHits(await searchProducts(t));
     } catch (error) {
+      lastSearched.current = ""; // let Enter or the next keystroke retry
       setHits(null);
       setSearchError(error instanceof Error ? error.message : "Unknown error");
     } finally {
       setSearching(false);
     }
   }
+
+  function runSearch(q: string) {
+    setQuery(q);
+    setPicked(null);
+    const t = q.trim();
+    if (t === "") {
+      lastSearched.current = "";
+      setHits(null);
+      setSearchError(null);
+      return;
+    }
+    if (lastSearched.current !== t) void searchCore(t);
+  }
+
+  // Type-ahead: results follow keystrokes after a 300ms breath (Doherty band).
+  // Enter still searches instantly via runSearch above.
+  useEffect(() => {
+    const t = query.trim();
+    if (t === "" || lastSearched.current === t) return;
+    setPicked(null);
+    const timer = setTimeout(() => {
+      if (lastSearched.current === t) return; // Enter already fetched it
+      void searchCore(t);
+    }, 300);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
 
   async function pickProduct(hit: SearchHit) {
     setDetailError(null);
@@ -242,7 +267,7 @@ export default function Dashboard() {
   return (
     <>
       <SiteNav variant="app" />
-    <main id="main" tabIndex={-1} className="mx-auto w-full max-w-6xl px-4 py-8 outline-none sm:px-6">
+    <main id="main" tabIndex={-1} className="mx-auto w-full max-w-6xl px-4 py-8 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground sm:px-6">
       <header className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
@@ -262,7 +287,7 @@ export default function Dashboard() {
       </header>
 
       {boot.kind === "loading" && (
-        <div className="mt-8 grid grid-cols-1 gap-4 xl:grid-cols-2" aria-label="Loading">
+        <div role="status" className="mt-8 grid grid-cols-1 gap-4 xl:grid-cols-2">
           {[0, 1, 2].map((i) => (
             <div key={i} className="animate-pulse rounded-2xl border border-border bg-surface p-5">
               <div className="h-4 w-2/3 rounded bg-foreground/10" />
@@ -279,7 +304,7 @@ export default function Dashboard() {
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="mt-2 h-9 rounded-full border border-danger/40 px-4 text-[13px] font-medium hover:bg-danger/10"
+            className="mt-2 h-10 rounded-full border border-danger/40 px-4 text-[13px] font-medium hover:bg-danger/10"
           >
             Retry
           </button>
@@ -422,6 +447,7 @@ export default function Dashboard() {
               <ExpandingSearch
                 placeholder="Product name"
                 onSearch={runSearch}
+                onQueryChange={setQuery}
                 onOpenChange={(open) => {
                   if (!open) {
                     setHits(null);
@@ -496,7 +522,7 @@ export default function Dashboard() {
                       return (
                         <label
                           key={option.id}
-                          className="flex h-9 cursor-pointer touch-manipulation items-center gap-1.5 rounded-full border border-border px-3 text-[13px] text-foreground select-none has-checked:border-foreground has-checked:bg-foreground/10"
+                          className="flex h-10 cursor-pointer touch-manipulation items-center gap-1.5 rounded-full border border-border px-3 text-[13px] text-foreground select-none has-checked:border-foreground has-checked:bg-foreground/10"
                         >
                           <input
                             type="checkbox"
@@ -524,7 +550,7 @@ export default function Dashboard() {
                     max={168}
                     value={newInterval}
                     onChange={(e) => setNewInterval(Math.min(168, Math.max(1, Math.round(Number(e.target.value) || 2))))}
-                    className="h-9 w-20 rounded-xl border border-border bg-background px-2 tabular-nums"
+                    className="h-10 w-20 rounded-xl border border-border bg-background px-2 tabular-nums"
                   />
                   hour(s)
                 </label>
@@ -607,7 +633,7 @@ export default function Dashboard() {
                 <motion.div
                   key={target.id}
                   className="h-full"
-                  initial={{ opacity: 0, y: 16 }}
+                  initial={reduceMotion ? false : { opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.32, delay: Math.min(i * 0.06, 0.3), ease: [0.23, 1, 0.32, 1] }}
                 >
