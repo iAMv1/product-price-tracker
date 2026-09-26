@@ -2,6 +2,16 @@ import { SiteNav } from "../components/site-nav";
 
 const ENTRIES: Array<{ v: string; date: string; items: string[] }> = [
   {
+    v: "v0.4 — Review hardening",
+    date: "2026-09-26",
+    items: [
+      "Search became a real combobox: listbox semantics, cancel, elapsed feedback.",
+      "Accessibility pass: skip link, aria-current, alerts, 24px targets, shared nav.",
+      "Layered scheduler: pg_cron keep-alive + rescue so the 2h trigger never dies.",
+      "Per-IP limits with trust proxy, 437 kB entry, honest price labels everywhere.",
+    ],
+  },
+  {
     v: "v0.3 — Story & navigation",
     date: "2026-09-25",
     items: [
