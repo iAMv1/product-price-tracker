@@ -5,8 +5,10 @@ coverage/
 
 .env
 .env.*
-!.env.example
-
+! .env.example
+# Production API base URL is not a secret (public in README) and must ship
+# with the source, or every Vercel build 404s on relative API calls.
+!frontend/.env.production
 *.log
 npm-debug.log*
 *.zip
@@ -28,3 +30,4 @@ npm-debug.log*
 /DEPLOY.md
 /DESIGN_NOTE_TEMPLATE.md
 /ops-deploy-wizard.sh
+
