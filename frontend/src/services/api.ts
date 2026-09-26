@@ -7,14 +7,23 @@ const BASE_URL = import.meta.env['VITE_API_BASE_URL'] ?? '';
 
 export interface IntegrationReadiness {
   database: boolean;
+  /** The one Bearer-authenticated surface: POST /api/internal/scrape-all. */
   schedulerAuth: boolean;
 }
+
+/**
+ * `integrations.*` = configuration is present; `database` = the live probe
+ * (SELECT 1, 2s budget). The backend reports both because they are different
+ * questions — optional here so an older payload still type-checks.
+ */
+export type DatabaseProbe = 'not_configured' | 'reachable' | 'unreachable';
 
 export interface HealthResponse {
   status: string;
   service: string;
   environment: string;
   integrations: IntegrationReadiness;
+  database?: DatabaseProbe;
   checkedAt: string;
 }
 
@@ -80,6 +89,22 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Error text from a failed response: the SERVER's `message` wins when present
+ * (e.g. the seeded-demo 403 explains exactly why an untrack was refused), the
+ * generic "HTTP nnn" line is only the fallback for responses that carry none.
+ */
+function apiErrorFromBody(status: number, body: unknown, path: string): ApiError {
+  const record = (body ?? {}) as Record<string, unknown>;
+  return new ApiError(
+    status,
+    typeof record['error'] === 'string' ? record['error'] : null,
+    typeof record['message'] === 'string'
+      ? record['message']
+      : `${path} failed with HTTP ${status}`,
+  );
+}
+
 async function readJson<T>(response: Response, path: string): Promise<T> {
   let body: unknown = null;
   try {
@@ -87,17 +112,23 @@ async function readJson<T>(response: Response, path: string): Promise<T> {
   } catch {
     throw new ApiError(response.status, null, `${path} returned non-JSON (HTTP ${response.status})`);
   }
-  if (!response.ok) {
-    const record = (body ?? {}) as Record<string, unknown>;
-    throw new ApiError(
-      response.status,
-      typeof record['error'] === 'string' ? record['error'] : null,
-      typeof record['message'] === 'string'
-        ? record['message']
-        : `${path} failed with HTTP ${response.status}`,
-    );
-  }
+  if (!response.ok) throw apiErrorFromBody(response.status, body, path);
   return body as T;
+}
+
+/**
+ * For hand-rolled fetches (DELETE answers 204 with no body, so readJson does
+ * not fit): surface the server's message, degrading to the generic line when
+ * the body is missing or not JSON.
+ */
+async function throwHttpError(response: Response, path: string): Promise<never> {
+  let body: unknown = null;
+  try {
+    body = (await response.json()) as unknown;
+  } catch {
+    body = null;
+  }
+  throw apiErrorFromBody(response.status, body, path);
 }
 
 async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
@@ -160,25 +191,29 @@ export function trackProduct(
   });
 }
 
-export function updateInterval(id: string, scrapeIntervalHours: number): Promise<unknown> {
-  return fetch(`${BASE_URL}/api/tracked-products/${encodeURIComponent(id)}`, {
+export async function updateInterval(id: string, scrapeIntervalHours: number): Promise<unknown> {
+  const path = `/api/tracked-products/${encodeURIComponent(id)}`;
+  const response = await fetch(`${BASE_URL}${path}`, {
     method: 'PATCH',
     headers: { accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify({ scrapeIntervalHours }),
-  }).then((r) => {
-    if (!r.ok) throw new Error(`interval update failed with HTTP ${r.status}`);
-    return r.json() as Promise<unknown>;
   });
+  // A refused PATCH (403 demo_protected when pausing a seeded demo target)
+  // carries a message written for the user — pass it through verbatim.
+  if (!response.ok) await throwHttpError(response, path);
+  return response.json() as Promise<unknown>;
 }
 
 /** DELETE must go through BASE_URL — a bare relative fetch 404s on Vercel. */
-export function untrackTarget(id: string): Promise<void> {
-  return fetch(`${BASE_URL}/api/tracked-products/${encodeURIComponent(id)}`, {
+export async function untrackTarget(id: string): Promise<void> {
+  const path = `/api/tracked-products/${encodeURIComponent(id)}`;
+  const response = await fetch(`${BASE_URL}${path}`, {
     method: 'DELETE',
     headers: { accept: 'application/json' },
-  }).then((r) => {
-    if (!r.ok) throw new Error(`untrack failed with HTTP ${r.status}`);
   });
+  // Success is 204 (soft delete). A refusal — most importantly the seeded
+  // demo 403 — must reach the user's inline error with the server's own words.
+  if (!response.ok) await throwHttpError(response, path);
 }
 
 export function fetchHistory(id: string): Promise<HistoryEntry[]> {
@@ -239,12 +274,21 @@ export function trackByProduct(
   return postJson('/api/tracked-products/by-product', { storeProductId, options, scrapeIntervalHours });
 }
 
+/**
+ * Run lifecycle states. The backend's scrape_runs CHECK constrains status to
+ * exactly these five, but the feed is read by a UI that must never render a
+ * raw enum: `| (string & {})` keeps the union (so a new backend state is a
+ * deliberate edit, not a silent `string`) while still allowing one through to
+ * the defensive fallback in `lib/runStatus`.
+ */
+export type RunStatus = 'queued' | 'running' | 'completed' | 'failed' | 'abandoned';
+
 export interface RunEntry {
   id: string;
   triggerType: string;
   startedAt: string;
   completedAt: string | null;
-  status: string;
+  status: RunStatus | (string & {});
   targetCount: number;
   successCount: number;
   retriedCount: number;

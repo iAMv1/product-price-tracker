@@ -133,9 +133,61 @@ export interface BatchSummary {
   totalAttempts: number;
 }
 
+export interface RunHooks {
+  /**
+   * Called after every target: the dispatcher uses it to heartbeat the run
+   * row (and renew the scheduler lease) so a live batch never looks dead.
+   */
+  onTargetDone?: () => Promise<void>;
+}
+
+/**
+ * Execute an ALREADY-CREATED run row to completion. Split from
+ * runAllTargets so the scheduler can persist the run (durable claim)
+ * before answering the cron edge, then finish in the background.
+ */
+export async function executeScrapeRun(
+  db: Queryable,
+  runId: string,
+  input: {
+    targets: TargetInput[];
+    scrape: ScrapeFn;
+    sleep?: Sleep;
+    hooks?: RunHooks;
+  },
+): Promise<Omit<BatchSummary, 'runId'>> {
+  const sleep = input.sleep ?? realSleep;
+  let succeeded = 0;
+  let failed = 0;
+  let totalAttempts = 0;
+  // Targets are processed SERIALLY on purpose: upstream reliability matters
+  // more than throughput at assignment scale, and parallel bursts invite the
+  // storefront's rate limiter. Do not "optimize" this into Promise.all
+  // without re-checking rate limits and the single-flight lease budget.
+  for (const target of input.targets) {
+    const outcome = await runTarget(db, runId, target, input.scrape, sleep);
+    totalAttempts += outcome.attempts;
+    if (outcome.finalOutcome === 'success') succeeded += 1;
+    else failed += 1;
+    await input.hooks?.onTargetDone?.();
+  }
+  // Retried rows are exactly the non-final attempts of failed-then-recovered
+  // or failed chains: total attempts minus one final row per target.
+  const retriedAttempts = totalAttempts - input.targets.length;
+  await completeScrapeRun(db, runId, {
+    successCount: succeeded,
+    retriedCount: retriedAttempts,
+    failureCount: failed,
+  });
+  return { succeeded, failed, retriedAttempts, totalAttempts };
+}
+
 /**
  * Run every target independently. One product's failure never stops the
  * batch (assignment requirement); the run row carries the aggregate counts.
+ * Synchronous convenience wrapper (manual/track/multi-option paths); the
+ * scheduled dispatcher persists the run first via createScrapeRun +
+ * executeScrapeRun so it can reply before the batch finishes.
  */
 export async function runAllTargets(
   db: Queryable,
@@ -144,36 +196,18 @@ export async function runAllTargets(
     targets: TargetInput[];
     scrape: ScrapeFn;
     sleep?: Sleep;
+    hooks?: RunHooks;
   },
 ): Promise<BatchSummary> {
-  const sleep = input.sleep ?? realSleep;
   const run = await createScrapeRun(db, {
     triggerType: input.triggerType,
     targetCount: input.targets.length,
   });
-
-  let succeeded = 0;
-  let failed = 0;
-  let totalAttempts = 0;
-  for (const target of input.targets) {
-    const outcome = await runTarget(db, run.id, target, input.scrape, sleep);
-    totalAttempts += outcome.attempts;
-    if (outcome.finalOutcome === 'success') succeeded += 1;
-    else failed += 1;
-  }
-  // Retried rows are exactly the non-final attempts of failed-then-recovered
-  // or failed chains: total attempts minus one final row per target.
-  const retriedAttempts = totalAttempts - input.targets.length;
-  await completeScrapeRun(db, run.id, {
-    successCount: succeeded,
-    retriedCount: retriedAttempts,
-    failureCount: failed,
+  const summary = await executeScrapeRun(db, run.id, {
+    targets: input.targets,
+    scrape: input.scrape,
+    sleep: input.sleep,
+    hooks: input.hooks,
   });
-  return {
-    runId: run.id,
-    succeeded,
-    failed,
-    retriedAttempts,
-    totalAttempts,
-  };
+  return { runId: run.id, ...summary };
 }

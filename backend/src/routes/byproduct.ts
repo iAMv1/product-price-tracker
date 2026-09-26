@@ -3,6 +3,8 @@ import {
   createTrackedProduct,
   getLatestValidated,
   listActiveTrackedProducts,
+  isUniqueViolation,
+  reactivateTrackedByIdentity,
 } from '../persistence/repositories.js';
 import { rowToTarget, runAllTargets } from '../scraper/runner.js';
 import { fetchJson, itemUrl, matchOption, parseStoreItem } from '../scraper/store/catalog.js';
@@ -80,12 +82,24 @@ byProductRouter.post('/by-product', async (req: Request, res: Response) => {
           }),
         ),
       );
-    } catch {
+    } catch (error) {
+      // Only a uniqueness collision means "row exists" — anything else
+      // (outage, constraint bug) must propagate instead of being swallowed.
+      if (!isUniqueViolation(error)) throw error;
       const existing = (await listActiveTrackedProducts(db)).find(
         (c) => c.store_product_id === storeProductId && c.selected_option === opt,
       );
-      if (existing === undefined) throw new Error('duplicate insert without existing row');
-      targets.push(rowToTarget(existing));
+      if (existing !== undefined) {
+        targets.push(rowToTarget(existing));
+        continue;
+      }
+      const reactivated = await reactivateTrackedByIdentity(db, {
+        storeProductId,
+        selectedOption: opt,
+        productUrl: url,
+      });
+      if (reactivated === null) throw new Error('duplicate insert without existing row');
+      targets.push(rowToTarget(reactivated));
     }
   }
   const summary = await runAllTargets(db, { triggerType: 'manual', targets, scrape });

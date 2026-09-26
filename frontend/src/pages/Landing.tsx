@@ -16,6 +16,7 @@ import { Odometer } from "../components/ui/odometer";
 import { RelativeTime } from "../components/ui/relative-time";
 import { cn } from "../lib/cn";
 import { formatRupees } from "../lib/format";
+import { runCounts, runStatus } from "../lib/runStatus";
 
 /**
  * Story-led landing. One idea per viewport: the store is awkward, the log is
@@ -98,6 +99,9 @@ function HeroProof({ targets }: { targets: TrackedTarget[] }) {
 
   const t = targets[0];
   const lastRun = runs[0];
+  // A run with no recorded attempt (queued, or dispatched with nothing due)
+  // shows its state, not "0✓" — the same honesty rule the strip follows.
+  const lastRunCounts = lastRun === undefined ? "" : runCounts(lastRun);
   const firstAlert = alerts[0];
   if (t === undefined) return null;
   const rise = (delay: number) =>
@@ -170,7 +174,8 @@ function HeroProof({ targets }: { targets: TrackedTarget[] }) {
               <RelativeTime date={lastRun.startedAt} />
             </span>
             <span className="text-[13px] text-muted tabular-nums">
-              {lastRun.triggerType} · {lastRun.successCount}✓
+              {lastRun.triggerType} · {runStatus(lastRun.status).label}
+              {lastRunCounts !== "" ? ` · ${lastRun.successCount}✓` : ""}
               {lastRun.failureCount > 0 ? ` ${lastRun.failureCount}✗` : ""}
             </span>
           </div>

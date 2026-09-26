@@ -250,7 +250,7 @@ describe('scheduler entrypoint (SCHED-001)', () => {
 
     // Just scraped via track: per-product frequency skips it (honest skip).
     const skipped = await request(app)
-      .post('/api/internal/scrape-all')
+      .post('/api/internal/scrape-all?wait=true')
       .set('Authorization', 'Bearer dev-cron-secret');
     expect(skipped.status).toBe(200);
     expect(skipped.body).toMatchObject({ succeeded: 0, skipped: 1 });
@@ -258,10 +258,152 @@ describe('scheduler entrypoint (SCHED-001)', () => {
     // Age the last attempt past the 2h default: target becomes due again.
     await db.query(`UPDATE scrape_attempts SET attempted_at = '2020-01-01T00:00:00Z'`);
     const res = await request(app)
-      .post('/api/internal/scrape-all')
+      .post('/api/internal/scrape-all?wait=true')
       .set('Authorization', 'Bearer dev-cron-secret');
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ succeeded: 1, failed: 0 });
+  });
+
+  it('dispatches fast and the run finishes durably in the background', async () => {
+    const { app, db } = setup();
+    await request(app)
+      .post('/api/tracked-products')
+      .send({ storeProductId: '2626', selectedOption: 'o1' });
+    await db.query(`UPDATE scrape_attempts SET attempted_at = '2020-01-01T00:00:00Z'`);
+
+    const res = await request(app)
+      .post('/api/internal/scrape-all')
+      .set('Authorization', 'Bearer dev-cron-secret');
+    // Fast reply: the cron edge never waits on the batch (30s timeout).
+    expect(res.status).toBe(202);
+    expect(res.body).toMatchObject({ dispatched: true, due: 1, skipped: 0 });
+    const runId = String(res.body.runId);
+
+    let status = 'running';
+    for (let i = 0; i < 300 && status !== 'completed'; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const probe = await db.query(`SELECT status FROM scrape_runs WHERE id = $1`, [runId]);
+      status = String((probe.rows[0] as { status: string } | undefined)?.status ?? 'missing');
+    }
+    const counts = await db.query(
+      `SELECT status, success_count, target_count FROM scrape_runs WHERE id = $1`,
+      [runId],
+    );
+    expect(counts.rows[0]).toMatchObject({
+      status: 'completed',
+      success_count: 1,
+      target_count: 1,
+    });
+    // Lease released after the batch: the next scheduler can take it.
+    const leases = await db.query(`SELECT owner_id FROM scheduler_leases`);
+    expect(leases.rows.length).toBe(0);
+  });
+
+  it('no-ops honestly while another scheduler holds the lease', async () => {
+    const { app, db } = setup();
+    await db.query(
+      `INSERT INTO scheduler_leases (lease_key, owner_id, leased_until)
+       VALUES ('scrape-all', $1, $2)`,
+      [
+        '11111111-1111-1111-1111-111111111111',
+        new Date(Date.now() + 60_000).toISOString(),
+      ],
+    );
+    const res = await request(app)
+      .post('/api/internal/scrape-all')
+      .set('Authorization', 'Bearer dev-cron-secret');
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ dispatched: false, reason: 'lease-held' });
+    const runs = await db.query(`SELECT id FROM scrape_runs`);
+    expect(runs.rows.length).toBe(0);
+  });
+
+  it('abandons runs a dead process left running', async () => {
+    const { app, db } = setup();
+    const staleId = '22222222-2222-2222-2222-222222222222';
+    await db.query(
+      `INSERT INTO scrape_runs (id, trigger_type, status, target_count, started_at, last_heartbeat_at)
+       VALUES ($1, 'scheduled', 'running', 2, $2, $2)`,
+      [staleId, new Date(Date.now() - 3_600_000).toISOString()],
+    );
+    const res = await request(app)
+      .post('/api/internal/scrape-all?wait=true')
+      .set('Authorization', 'Bearer dev-cron-secret');
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ recovered: 1 });
+    const row = await db.query(`SELECT status FROM scrape_runs WHERE id = $1`, [staleId]);
+    expect((row.rows[0] as { status: string }).status).toBe('abandoned');
+  });
+});
+
+describe('demo protection + evidence-preserving untrack', () => {
+  it('soft-untracks without destroying evidence and reactivates on re-track', async () => {
+    const { app, db } = setup();
+    const created = await request(app)
+      .post('/api/tracked-products')
+      .send({ storeProductId: '2626', selectedOption: 'o1' });
+    expect(created.status).toBe(201);
+    const id = created.body.id as string;
+
+    expect((await request(app).delete(`/api/tracked-products/${id}`)).status).toBe(204);
+    expect((await request(app).get('/api/tracked-products')).body.count).toBe(0);
+
+    // Evidence survives the untrack: attempts + history stay attached.
+    const attempts = await db.query(`SELECT id FROM scrape_attempts`);
+    expect(attempts.rows.length).toBe(1);
+    const history = await db.query(`SELECT id FROM price_stock_history`);
+    expect(history.rows.length).toBe(1);
+
+    // Re-tracking the same identity reactivates the dormant row.
+    const again = await request(app)
+      .post('/api/tracked-products')
+      .send({ storeProductId: '2626', selectedOption: 'o1' });
+    expect(again.status).toBe(201);
+    expect(again.body.id).toBe(id);
+    expect((await request(app).get('/api/tracked-products')).body.count).toBe(1);
+  });
+
+  it('protects seeded demo targets from public retirement', async () => {
+    const { app, db } = setup();
+    const created = await request(app)
+      .post('/api/tracked-products')
+      .send({ storeProductId: '2626', selectedOption: 'o1' });
+    await db.query(`UPDATE tracked_products SET is_demo_seeded = TRUE`);
+    const id = created.body.id as string;
+
+    const del = await request(app).delete(`/api/tracked-products/${id}`);
+    expect(del.status).toBe(403);
+    expect(del.body.error).toBe('demo_protected');
+
+    const pause = await request(app)
+      .patch(`/api/tracked-products/${id}`)
+      .send({ isActive: false });
+    expect(pause.status).toBe(403);
+
+    // Reconfiguration stays open: interval edits are allowed on seeded rows.
+    const interval = await request(app)
+      .patch(`/api/tracked-products/${id}`)
+      .send({ scrapeIntervalHours: 6 });
+    expect(interval.status).toBe(200);
+    expect(interval.body).toMatchObject({ scrapeIntervalHours: 6 });
+  });
+
+  it('rejects a non-UUID manual scrape id with 400, not a uuid-cast 500', async () => {
+    const { app } = setup();
+    const res = await request(app).post('/api/tracked-products/not-a-uuid/scrape');
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('bad_request');
+  });
+});
+
+describe('health (dependency readiness)', () => {
+  it('reports actual DB reachability, not just configuration', async () => {
+    const { app } = setup();
+    const res = await request(app).get('/health');
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ status: 'ok', database: 'reachable' });
+    expect(res.body.integrations).toHaveProperty('database');
+    expect(res.body.integrations).toHaveProperty('schedulerAuth');
   });
 });
 
@@ -434,5 +576,42 @@ describe('unconfigured database', () => {
           .set('Authorization', 'Bearer dev-cron-secret')
       ).status,
     ).toBe(503);
+  });
+});
+
+describe('search listing-page cache (audit item 10)', () => {
+  it('replays an already-fetched listing page with no second upstream call', async () => {
+    // No storeFetch injected: the SAME gate that arms searchMemo arms the
+    // per-page cache, so the global fetch path is the upstream here. Every
+    // test above injects deps, which is what keeps their stubs deterministic.
+    const app = createApp({ db: createTestQueryable(createSchemaDb()) });
+    let storeCalls = 0;
+    let listingCalls = 0;
+    const countingFetch: FetchImpl = (input, init) => {
+      const url = String(input);
+      if (url.includes('/api/v2/')) storeCalls += 1;
+      if (url.includes('/api/v2/listings')) listingCalls += 1;
+      return stubStore(input, init);
+    };
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = countingFetch;
+    try {
+      const first = await request(app).get('/api/products/search?q=ukulele');
+      expect(first.status).toBe(200);
+      expect(first.body.count).toBeGreaterThanOrEqual(1);
+      expect(listingCalls).toBe(1);
+      expect(storeCalls).toBe(1);
+
+      // Different query, same listing URLs (the store ignores ?q=): the page
+      // must come from the cache instead of the store.
+      const second = await request(app).get('/api/products/search?q=redwick');
+      expect(second.status).toBe(200);
+      expect(second.body.count).toBeGreaterThanOrEqual(1);
+      expect(second.body.results[0].name).toContain('Redwick');
+      expect(listingCalls).toBe(1);
+      expect(storeCalls).toBe(1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

@@ -10,7 +10,7 @@ import { LiveIndicator, useWorkIndicator } from "../components/ui/live-indicator
 import { toast } from "../components/ui/toast-stack";
 import { useDashboardData } from "../hooks/useDashboardData";
 import { useSearchFlow } from "../hooks/useSearchFlow";
-import { exportCsvUrl } from "../services/api";
+import { exportCsvUrl, type HealthResponse } from "../services/api";
 
 /**
  * The dashboard, as composition rather than a state machine.
@@ -29,6 +29,20 @@ import { exportCsvUrl } from "../services/api";
  *   in words rather than shown as zero, and no skeleton or progress indicator
  *   ever invents a value
  */
+/**
+ * Health answers two different questions — is the DB configured, and can it
+ * be reached right now — so the status line does too. An older payload
+ * without the live probe may only claim configuration, never connection.
+ */
+function describeDatabase(health: HealthResponse): string {
+  const probe = health.database;
+  const configured = health.integrations.database;
+  if (probe === "reachable") return "reachable";
+  if (probe === "not_configured") return "not configured";
+  if (probe === "unreachable") return configured ? "configured, unreachable" : "unreachable";
+  return configured ? "configured" : "not configured";
+}
+
 export default function Dashboard() {
   const {
     boot,
@@ -146,9 +160,17 @@ export default function Dashboard() {
           ) : (
             <p className="mt-2 font-data text-[13px] text-muted">
               backend {boot.health.environment} · database{" "}
-              {boot.health.integrations.database
-                ? "connected"
-                : "not configured"}
+              {/* The health body separates "configured" from "reachable";
+                  saying "connected" about an env var would not. */}
+              <span
+                className={
+                  boot.health.database === "unreachable"
+                    ? "font-medium text-danger"
+                    : undefined
+                }
+              >
+                {describeDatabase(boot.health)}
+              </span>
             </p>
           )}
 

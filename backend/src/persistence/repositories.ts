@@ -15,6 +15,8 @@ export interface TrackedProductRow {
   product_url: string;
   is_active: boolean;
   scrape_interval_hours: number;
+  /** Present when loaded through getTrackedProduct: seeded demo protection. */
+  is_demo_seeded?: boolean;
 }
 
 export interface ScrapeRunRow {
@@ -146,6 +148,136 @@ export async function completeScrapeRun(
   );
 }
 
+/**
+ * Unique-constraint violation (SQLSTATE 23505). Duplicate-recovery paths in
+ * the track routes must catch ONLY this — a connection outage or constraint
+ * bug must not be mistaken for "row already exists". The message fallback
+ * exists because pg-mem signals uniqueness in the message, not the code.
+ */
+export function isUniqueViolation(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const code = (error as { code?: unknown }).code;
+  if (code === '23505') return true;
+  const message = (error as { message?: unknown }).message;
+  return (
+    typeof message === 'string' &&
+    /duplicate key|unique constraint/i.test(message)
+  );
+}
+
+/** Liveness tick: written between targets while a dispatched run executes. */
+export async function heartbeatScrapeRun(db: Queryable, runId: string): Promise<void> {
+  await db.query(`UPDATE scrape_runs SET last_heartbeat_at = now() WHERE id = $1`, [runId]);
+}
+
+/** A dispatched run whose execution escaped with an error: mark failed. */
+export async function failScrapeRun(db: Queryable, runId: string): Promise<void> {
+  await db.query(
+    `UPDATE scrape_runs
+     SET status = 'failed', completed_at = now(), last_heartbeat_at = now()
+     WHERE id = $1 AND status IN ('queued', 'running')`,
+    [runId],
+  );
+}
+
+/**
+ * Stale-run recovery: runs left 'queued'/'running' by a dead process have no
+ * recent heartbeat (COALESCE covers rows written before the column existed).
+ * Returns how many runs were abandoned — surfaced in the scheduler response
+ * so a crash is visible evidence, never a silent gap.
+ */
+export async function abandonStaleRuns(db: Queryable, staleMinutes: number): Promise<number> {
+  const cutoff = new Date(Date.now() - staleMinutes * 60_000).toISOString();
+  const result = await db.query(
+    `UPDATE scrape_runs
+     SET status = 'abandoned', completed_at = now()
+     WHERE status IN ('queued', 'running')
+       AND COALESCE(last_heartbeat_at, started_at) < $1
+     RETURNING id`,
+    [cutoff],
+  );
+  return result.rows.length;
+}
+
+/**
+ * Single-flight lease: takes `key` if free or expired, else reports another
+ * live owner. Expiry guarantees a crashed owner cannot wedge the schedule;
+ * renewLease extends the window while work actually proceeds.
+ */
+export async function acquireLease(
+  db: Queryable,
+  key: string,
+  owner: string,
+  ttlMs: number,
+): Promise<boolean> {
+  const nowIso = new Date().toISOString();
+  const untilIso = new Date(Date.now() + ttlMs).toISOString();
+  const takeover = await db.query(
+    `UPDATE scheduler_leases SET owner_id = $2, leased_until = $3
+     WHERE lease_key = $1 AND leased_until < $4
+     RETURNING lease_key`,
+    [key, owner, untilIso, nowIso],
+  );
+  if (takeover.rows.length > 0) return true;
+  try {
+    const inserted = await db.query(
+      `INSERT INTO scheduler_leases (lease_key, owner_id, leased_until)
+       VALUES ($1, $2, $3) RETURNING lease_key`,
+      [key, owner, untilIso],
+    );
+    return inserted.rows.length > 0;
+  } catch (error) {
+    if (isUniqueViolation(error)) return false;
+    throw error;
+  }
+}
+
+export async function renewLease(
+  db: Queryable,
+  key: string,
+  owner: string,
+  ttlMs: number,
+): Promise<void> {
+  await db.query(
+    `UPDATE scheduler_leases SET leased_until = $3
+     WHERE lease_key = $1 AND owner_id = $2`,
+    [key, owner, new Date(Date.now() + ttlMs).toISOString()],
+  );
+}
+
+export async function releaseLease(
+  db: Queryable,
+  key: string,
+  owner: string,
+): Promise<void> {
+  await db.query(
+    `DELETE FROM scheduler_leases WHERE lease_key = $1 AND owner_id = $2`,
+    [key, owner],
+  );
+}
+
+/**
+ * Re-track after a soft untrack: reactivate the dormant row instead of
+ * failing the unique-identity constraint. Evidence (attempts/history) stays
+ * attached across untrack -> re-track cycles.
+ */
+export async function reactivateTrackedByIdentity(
+  db: Queryable,
+  identity: { storeProductId: string; selectedOption: string; productUrl: string },
+): Promise<TrackedProductRow | null> {
+  const result = await db.query(
+    `UPDATE tracked_products
+     SET is_active = TRUE, updated_at = now()
+     WHERE store_product_id = $1 AND selected_option = $2 AND product_url = $3
+       AND is_active = FALSE
+     RETURNING id, store_product_id, product_name, selected_option, product_url,
+               is_active, scrape_interval_hours`,
+    [identity.storeProductId, identity.selectedOption, identity.productUrl],
+  );
+  const [row] = rows<TrackedProductRow>(result);
+  return row ?? null;
+}
+
 export interface NonSuccessAttempt {
   runId: string;
   trackedProductId: string;
@@ -230,7 +362,8 @@ export async function getTrackedProduct(
   id: string,
 ): Promise<TrackedProductRow | null> {
   const result = await db.query(
-    `SELECT id, store_product_id, product_name, selected_option, product_url, is_active, scrape_interval_hours
+    `SELECT id, store_product_id, product_name, selected_option, product_url, is_active,
+            scrape_interval_hours, is_demo_seeded
      FROM tracked_products WHERE id = $1`,
     [id],
   );
@@ -254,6 +387,7 @@ export async function getTrackedProduct(
     product_url: row['product_url'],
     is_active: row['is_active'] === true,
     scrape_interval_hours: interval,
+    is_demo_seeded: row['is_demo_seeded'] === true,
   };
 }
 

@@ -34,6 +34,19 @@ const searchMemo = new Map<string, { expires: number; body: unknown }>();
 const SEARCH_MEMO_MS = 60_000;
 const SEARCH_MEMO_MAX = 100;
 
+/**
+ * Per-page listing cache (the OTHER half of search amplification): the store
+ * ignores `?q=`, so every query walks the SAME listing URLs — page 1 of one
+ * search is page 1 of the next. Keyed by the exact listings URL, holds only
+ * payloads that were fetched cleanly AND parsed without drift (a bad payload
+ * never enters), 10 minutes each, bounded to 80 entries with oldest-first
+ * eviction. Same enable gate as searchMemo: test runs inject a fake store,
+ * so the cache must stay OFF for stubbed-fetch determinism.
+ */
+const pageCache = new Map<string, { json: unknown; expiresAt: number }>();
+const PAGE_CACHE_TTL_MS = 10 * 60_000;
+const PAGE_CACHE_MAX = 80;
+
 export const productsRouter = Router();
 
 productsRouter.get('/search', async (req: Request, res: Response) => {
@@ -101,6 +114,7 @@ productsRouter.get('/search', async (req: Request, res: Response) => {
   let incomplete = false;
   // Replay/typing repeats hit the memo instead of the store (see above).
   const memoKey = q.trim().toLowerCase();
+  // Single gate for BOTH caches: injected test deps bypass them entirely.
   const memoEnabled = req.app.locals.storeFetch === undefined;
   if (memoEnabled) {
     const hit = searchMemo.get(memoKey);
@@ -112,18 +126,35 @@ productsRouter.get('/search', async (req: Request, res: Response) => {
   }
   try {
     while (page <= totalPages && matches.length < SEARCH_MAX_RESULTS) {
-      const fetched = await fetchJsonWithRetry(
-        listingsUrl(baseUrl, page, SEARCH_PAGE_LIMIT),
-        `listings page ${page}`,
-        storeFetch,
-      );
-      if (!fetched.ok) {
-        // Persistent failure: skip the page, say so, keep collected matches.
-        incomplete = true;
-        page += 1;
-        continue;
+      const url = listingsUrl(baseUrl, page, SEARCH_PAGE_LIMIT);
+      let json: unknown;
+      let fetchedNow = false;
+      const cached = memoEnabled ? pageCache.get(url) : undefined;
+      if (cached !== undefined && cached.expiresAt > Date.now()) {
+        // Page already upstream this session: replay it without a fetch.
+        json = cached.json;
+      } else {
+        if (cached !== undefined) pageCache.delete(url);
+        const fetched = await fetchJsonWithRetry(url, `listings page ${page}`, storeFetch);
+        if (!fetched.ok) {
+          // Persistent failure: skip the page, say so, keep collected matches.
+          // Failures are NEVER cached — the next search retries this page.
+          incomplete = true;
+          page += 1;
+          continue;
+        }
+        json = fetched.json;
+        fetchedNow = true;
       }
-      const listings = parseListingsPage(fetched.json);
+      const listings = parseListingsPage(json);
+      // Cache only AFTER a clean parse: a payload that drifts stays out.
+      if (fetchedNow && memoEnabled) {
+        if (pageCache.size >= PAGE_CACHE_MAX) {
+          const oldest = pageCache.keys().next().value;
+          if (oldest !== undefined) pageCache.delete(oldest);
+        }
+        pageCache.set(url, { json, expiresAt: Date.now() + PAGE_CACHE_TTL_MS });
+      }
       totalPages = Math.min(listings.totalPages, SEARCH_MAX_PAGES);
       for (const hit of filterListingsByName(listings.results, q)) {
         if (matches.length >= SEARCH_MAX_RESULTS) break;

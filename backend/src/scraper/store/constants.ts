@@ -40,6 +40,13 @@ export const HOVER_MAX_MOVES = 40;
 export const MAX_POW_DIFFICULTY = 8;
 /** Absolute cap on PoW iterations before giving up for this attempt. */
 export const MAX_POW_NONCE = 100_000_000;
+/**
+ * Wall-clock budget for one PoW attempt. The nonce cap alone lets a
+ * difficulty spike burn ~100M hashes (100s of CPU) before failing; the time
+ * budget is the primary guard and fails in ~2s, nonce cap stays as the
+ * second guard for a stalled clock.
+ */
+export const MAX_POW_ELAPSED_MS = 2_000;
 
 /** Per-request network timeout (matches the spike probes). */
 export const REQUEST_TIMEOUT_MS = 15_000;

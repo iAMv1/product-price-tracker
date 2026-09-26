@@ -3,6 +3,7 @@ import { RelativeTime } from "../ui/relative-time";
 import { SectionTitle } from "../site-nav";
 import { StatCounter, type Stat } from "../ui/stat-counter";
 import { cn } from "../../lib/cn";
+import { runCounts, runStatus } from "../../lib/runStatus";
 import type { RunEntry } from "../../services/api";
 
 // Counts are integers, so the format pins zero fraction digits: during the
@@ -88,23 +89,44 @@ export function RunsStrip({ runs }: { runs: RunEntry[] }) {
         Recent runs
       </SectionTitle>
       <ol className="mt-3 flex flex-wrap gap-2">
-        {visible.map((run) => (
-          <li
-            key={run.id}
-            className={cn(
-              "flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-[13px]",
-              run.failureCount > 0 ? "border-danger bg-background" : "border-border bg-background",
-            )}
-            title={`${run.triggerType} · ${run.targetCount} targets`}
-          >
-            <RelativeTime date={run.startedAt} />
-            <span className="text-muted">{run.triggerType}</span>
-            <span className="font-data font-medium text-foreground">
-              {run.successCount} ok
-              {run.failureCount > 0 ? ` · ${run.failureCount} failed` : ""}
-            </span>
-          </li>
-        ))}
+        {visible.map((run) => {
+          const status = runStatus(run.status);
+          const counts = runCounts(run);
+          // A completed run that still lost checks keeps its red edge: the
+          // state says "finished", the counts say "not cleanly".
+          const pill =
+            status.tone === "neutral" && run.failureCount > 0
+              ? "border-danger bg-background text-foreground"
+              : status.pill;
+          const title = status.known
+            ? `${status.label} · ${run.triggerType} · ${run.targetCount} targets`
+            : `${status.label} (unrecognised status: ${run.status}) · ${run.triggerType} · ${run.targetCount} targets`;
+          return (
+            <li
+              key={run.id}
+              className={cn(
+                "flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-[13px]",
+                pill,
+              )}
+              title={title}
+            >
+              <span
+                aria-hidden
+                className={cn("size-1.5 rounded-full border", status.dot)}
+              />
+              <RelativeTime date={run.startedAt} />
+              <span className="text-muted">{run.triggerType}</span>
+              <span className="font-medium">{status.label}</span>
+              {(counts || run.status === "queued") && (
+                <span className="font-data tabular-nums">
+                  {/* Queued claims targets but has recorded no attempt yet:
+                      "due" is the honest count, "0 ok" would not be. */}
+                  {counts || `${run.targetCount} due`}
+                </span>
+              )}
+            </li>
+          );
+        })}
         {!showAll && hidden > 0 && (
           <li>
             <button
