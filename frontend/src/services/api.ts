@@ -100,9 +100,10 @@ async function readJson<T>(response: Response, path: string): Promise<T> {
   return body as T;
 }
 
-async function getJson<T>(path: string): Promise<T> {
+async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`${BASE_URL}${path}`, {
     headers: { accept: 'application/json' },
+    ...(signal ? { signal } : {}),
   });
   return readJson<T>(response, path);
 }
@@ -120,11 +121,17 @@ export function fetchHealth(): Promise<HealthResponse> {
   return getJson<HealthResponse>('/health');
 }
 
-export async function searchProducts(query: string): Promise<SearchHit[]> {
-  const data = await getJson<{ results: SearchHit[] }>(
+export async function searchProducts(
+  query: string,
+  signal?: AbortSignal,
+): Promise<{ results: SearchHit[]; incomplete: boolean }> {
+  const data = await getJson<{ results: SearchHit[]; incomplete?: boolean }>(
     `/api/products/search?q=${encodeURIComponent(query)}`,
+    signal,
   );
-  return data.results;
+  // `incomplete` means the store answered some pages and timed out on others;
+  // dropping that flag would present a partial walk as a complete one.
+  return { results: data.results, incomplete: data.incomplete === true };
 }
 
 export function fetchProduct(id: string): Promise<ProductDetail> {

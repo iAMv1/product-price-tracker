@@ -1,5 +1,4 @@
-import { ThemeToggle } from "../components/ui/theme-toggle";
-import { TooltipGroup } from "../components/ui/tooltip-group";
+import { SiteNav } from "../components/site-nav";
 
 const ENTRIES: Array<{ v: string; date: string; items: string[] }> = [
   {
@@ -32,17 +31,10 @@ const ENTRIES: Array<{ v: string; date: string; items: string[] }> = [
 
 export default function Changelog() {
   return (
-    <div id="main" tabIndex={-1} className="mx-auto w-full max-w-3xl px-4 py-8 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground sm:px-6">
-      <header className="flex items-center justify-between">
-        <a href="#/" className="text-[15px] font-semibold tracking-tight">Price Tracker</a>
-        <div className="flex items-center gap-1 text-sm">
-          <a href="#/app" className="rounded-full px-3 py-1.5 hover:bg-foreground/10">Dashboard</a>
-          <TooltipGroup className="flex items-center gap-1 text-sm">
-            <ThemeToggle />
-          </TooltipGroup>
-        </div>
-      </header>
-      <h1 className="mt-10 text-4xl font-semibold tracking-tight sm:text-5xl">Changelog</h1>
+    <>
+      <SiteNav variant="app" />
+      <div id="main" tabIndex={-1} className="mx-auto w-full max-w-3xl px-4 py-8 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground sm:px-6">
+        <h1 className="mt-6 text-4xl font-semibold tracking-tight sm:text-5xl">Changelog</h1>
       <div className="mt-10 grid gap-4">
         {ENTRIES.map((e) => (
           <article key={e.v} className="rounded-2xl border border-border bg-surface p-6 shadow-raised">
@@ -60,7 +52,8 @@ export default function Changelog() {
             </ul>
           </article>
         ))}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

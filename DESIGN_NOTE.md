@@ -55,7 +55,10 @@ an observability wrapper (`tools/headed-scrape.ts`) for the recording.
 
 External 2h trigger (`0 */2 * * *`) because free-tier backends sleep; no
 in-process loop exists. Per-product `scrape_interval_hours` (1–168, default 2)
-skips recently-scraped targets honestly (`skipped` in response).
+skips recently-scraped targets honestly (`skipped` in response). Two Supabase
+pg_cron + pg_net jobs backstop the trigger: a `/health` keep-alive every 10
+minutes (`2-59/10 * * * *`) and a rescue re-fire of `scrape-all` at :50 past
+every even hour (`50 */2 * * *`) — overlap degrades to an honest no-op.
 
 ## 7. Data integrity
 

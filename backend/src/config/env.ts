@@ -33,7 +33,7 @@ export const env = {
   ).replace(/\/$/, ''),
 
   /** Shared secret the external scheduler must present on internal endpoints. */
-  cronSecret: readOptional('CRON_SECRET', isProduction ? '' : 'dev-cron-secret'),
+  cronSecret: readOptional('CRON_SECRET', ''),
 
   /** Comma-separated list of allowed browser origins. */
   corsOrigins: readOptional('CORS_ORIGINS', 'http://localhost:5173')

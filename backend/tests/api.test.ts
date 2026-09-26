@@ -78,6 +78,28 @@ describe('product search + detail (TRACK-001)', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
+  it('resolves a bare store id or a pasted item link directly (Postel)', async () => {
+    const { app } = setup();
+    const bare = await request(app).get('/api/products/search?q=2626');
+    expect(bare.status).toBe(200);
+    expect(bare.body.count).toBe(1);
+    expect(bare.body.results[0]).toMatchObject({
+      storeProductId: '2626',
+      name: 'Redwick Ukulele Nano',
+      productUrl: 'https://demo.inelabteamdev.com/item/2626',
+    });
+    const link = await request(app).get(
+      `/api/products/search?q=${encodeURIComponent('https://demo.inelabteamdev.com/item/2626')}`,
+    );
+    expect(link.status).toBe(200);
+    expect(link.body.count).toBe(1);
+    expect(link.body.results[0].storeProductId).toBe('2626');
+    const missing = await request(app).get('/api/products/search?q=9999');
+    expect(missing.status).toBe(200);
+    expect(missing.body.count).toBe(0);
+    expect(missing.body.results).toEqual([]);
+  });
+
   it('rejects empty queries and bad ids', async () => {
     const { app } = setup();
     expect((await request(app).get('/api/products/search')).status).toBe(400);

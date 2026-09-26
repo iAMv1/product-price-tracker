@@ -38,8 +38,16 @@ function fullTime(iso: string): string {
 }
 
 function alertLabel(a: AlertItem): string {
-  if (a.type === "price_drop") return `Price drop ${a.dropPct}% — now ${formatRupees(a.toPrice ?? 0)}`;
-  if (a.type === "back_in_stock") return `Back in stock (${a.stock ?? "in stock"})`;
+  if (a.type === "price_drop") {
+    // Never print a fabricated ₹0 when the alert row lacks the new price.
+    return a.toPrice == null
+      ? `Price drop ${a.dropPct}%`
+      : `Price drop ${a.dropPct}% — now ${formatRupees(a.toPrice)}`;
+  }
+  if (a.type === "back_in_stock") {
+    // `in stock` used to be invented when stock was null; state absence instead.
+    return a.stock == null ? "Back in stock" : `Back in stock (${a.stock})`;
+  }
   return `Scrape failed${a.errorCode ? ` — ${a.errorCode}` : ""}`;
 }
 
@@ -115,7 +123,7 @@ export default function Product() {
       >
         <a
           href="#/app"
-          className="inline-flex items-center gap-1.5 rounded-full text-sm text-muted outline-hidden hover:text-foreground focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground"
+          className="inline-flex items-center gap-1.5 rounded-full py-1 text-sm text-muted outline-hidden hover:text-foreground focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground"
         >
           <span aria-hidden>←</span> Back to dashboard
         </a>
@@ -132,15 +140,10 @@ export default function Product() {
         {state.kind === "missing" && (
           <div className="mt-10 rounded-2xl border border-border bg-surface p-6 text-center shadow-raised">
             <h1 className="text-lg font-semibold text-foreground">Target not found</h1>
-            <p className="mt-1 text-sm text-muted">
-              This quick view id is not tracked anymore — it may have been untracked.
-            </p>
-            <a
-              href="#/app"
-              className="mt-4 inline-flex h-10 items-center rounded-full bg-foreground px-4 text-[13px] font-medium text-background"
-            >
-              Back to dashboard
-            </a>
+            <h2 className="mt-1 text-sm font-medium text-muted">
+              This quick view id is not tracked anymore &mdash; it may have been untracked.
+            </h2>
+            {/* One CTA only: the "Back to dashboard" link above this card. */}
           </div>
         )}
 
@@ -180,7 +183,7 @@ export default function Product() {
                           href={target.productUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="underline decoration-foreground/30 underline-offset-2 outline-hidden hover:decoration-foreground focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground"
+                          className="inline-block py-1 underline decoration-foreground/30 underline-offset-2 outline-hidden hover:decoration-foreground focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground"
                         >
                           store page
                         </a>
@@ -193,9 +196,9 @@ export default function Product() {
                 {alerts.length > 0 && (
                   <section
                     aria-label="Alerts"
-                    className="mt-5 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3.5"
+                    className="mt-5 rounded-2xl border border-alert/40 bg-alert/10 px-4 py-3.5"
                   >
-                    <h2 className="text-[13px] font-semibold text-amber-700 dark:text-amber-400">
+                    <h2 className="text-[13px] font-semibold text-alert-fg">
                       Alerts ({alerts.length})
                     </h2>
                     <ul className="mt-1.5 grid gap-1.5 text-[13px]">
@@ -209,8 +212,8 @@ export default function Product() {
                 )}
 
                 {/* Price hero */}
-                <section aria-label="Current price" className="mt-6">
-                  <p className="text-[13px] text-muted">Current price</p>
+                <section aria-label="Last validated price" className="mt-6">
+                  <p className="text-[13px] text-muted">Last validated price</p>
                   {target.latest ? (
                     <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
                       <span aria-hidden className="text-2xl font-medium text-muted">
@@ -242,7 +245,16 @@ export default function Product() {
                   <div>
                     <dt className="text-[12px] tracking-wide text-muted uppercase">Last success</dt>
                     <dd className="mt-1 text-sm font-semibold text-foreground">
-                      {target.lastScrape ? <RelativeTime date={target.lastScrape.attemptedAt} /> : "never"}
+                      {/* The LAST ATTEMPT may have failed — this label must
+                          point at the newest validated observation, not the
+                          newest try. */}
+                      {history.length > 0 ? (
+                        <RelativeTime
+                          date={history.reduce((a, b) =>
+                            a.observed_at > b.observed_at ? a : b,
+                          ).observed_at}
+                        />
+                      ) : "never"}
                     </dd>
                   </div>
                   <div className="sm:border-l sm:border-border sm:pl-5">
@@ -303,7 +315,11 @@ export default function Product() {
                   >
                     {savingInterval ? "Saving…" : "Save"}
                   </button>
-                  {detailError && <span className="text-sm text-danger">{detailError}</span>}
+                  {detailError && (
+                    <span role="alert" className="text-sm text-danger">
+                      {detailError}
+                    </span>
+                  )}
                 </form>
 
                 {/* Trend — the sparkline renders its own header (title + value + delta) */}
@@ -382,7 +398,10 @@ export default function Product() {
                               </td>
                               <td className="py-1.5 text-muted">
                                 {entry.outcome === "success"
-                                  ? `${formatRupees(entry.price ?? 0)} · ${entry.stock}`
+                                  ? entry.price == null
+                                    // Absence in words — never fabricate ₹0.
+                                    ? `price not recorded · stock ${entry.stock ?? "unknown"}`
+                                    : `${formatRupees(entry.price)} · ${entry.stock ?? "stock unknown"}`
                                   : (entry.error_code ?? entry.error_message ?? "—")}
                               </td>
                             </tr>

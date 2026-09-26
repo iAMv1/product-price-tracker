@@ -20,6 +20,19 @@ import { productUrl, readDeps, routeParam, storeBaseUrl } from '../http/deps.js'
 
 const SEARCH_PAGE_LIMIT = 24;
 const SEARCH_MAX_RESULTS = 20;
+/** Hard ceiling on the name walk — a lying/huge `totalPages` stays bounded. */
+const SEARCH_MAX_PAGES = 40;
+
+/**
+ * Identical queries within a minute cost nothing upstream: type-ahead
+ * re-fires and replay probes become 0 store requests instead of a 40-page
+ * walk each. Incomplete results are NEVER cached — search again must retry
+ * the missing pages. Test runs inject a fake store (deps set), so the cache
+ * only engages when the real global fetch path is in use.
+ */
+const searchMemo = new Map<string, { expires: number; body: unknown }>();
+const SEARCH_MEMO_MS = 60_000;
+const SEARCH_MEMO_MAX = 100;
 
 export const productsRouter = Router();
 
@@ -31,11 +44,72 @@ productsRouter.get('/search', async (req: Request, res: Response) => {
   }
   const { storeFetch } = readDeps(req);
   const baseUrl = storeBaseUrl();
+
+  // Postel (LAW 16): accept a bare store id or a pasted item link the same as
+  // a name. The catalogue walk below filters NAMES, so digits ("2626") match
+  // nothing there — one direct item request answers the id/URL case instead
+  // of a slow 24-page walk that can never succeed.
+  const trimmed = q.trim();
+  const idFromQuery = /^\d+$/.test(trimmed)
+    ? trimmed
+    : (trimmed.match(/\/item\/(\d+)/i)?.[1] ?? null);
+  if (idFromQuery !== null) {
+    const fetched = await fetchJsonWithRetry(
+      itemUrl(baseUrl, Number(idFromQuery)),
+      `item ${idFromQuery}`,
+      storeFetch,
+    );
+    if (fetched.ok) {
+      try {
+        const item = parseStoreItem(fetched.json);
+        res.json({
+          query: q,
+          count: 1,
+          incomplete: false,
+          results: [
+            {
+              storeProductId: String(item.id),
+              name: item.name,
+              brand: item.brand ?? null,
+              category: item.category ?? null,
+              productUrl: productUrl(String(item.id)),
+            },
+          ],
+        });
+        return;
+      } catch {
+        res
+          .status(500)
+          .json({ error: 'handshake_drift', message: 'item changed shape unexpectedly' });
+        return;
+      }
+    }
+    const { errorCode, errorMessage, transient } = fetched.failure;
+    if (errorCode === 'item_not_found') {
+      // Unknown id: an honest empty result, not a name walk that cannot match.
+      res.json({ query: q, count: 0, incomplete: false, results: [] });
+      return;
+    }
+    res.status(transient ? 502 : 500).json({ error: errorCode, message: errorMessage });
+    return;
+  }
+
   const seen = new Set<string>();
   const matches: Array<Record<string, unknown>> = [];
   let page = 1;
   let totalPages = 1;
   let incomplete = false;
+  // Replay/typing repeats hit the memo instead of the store (see above).
+  const memoKey = q.trim().toLowerCase();
+  const memoEnabled = req.app.locals.storeFetch === undefined;
+  if (memoEnabled) {
+    const hit = searchMemo.get(memoKey);
+    if (hit !== undefined && hit.expires > Date.now()) {
+      res.json(hit.body);
+      return;
+    }
+    if (hit !== undefined) searchMemo.delete(memoKey);
+  }
   try {
     while (page <= totalPages && matches.length < SEARCH_MAX_RESULTS) {
       const fetched = await fetchJsonWithRetry(
@@ -50,7 +124,7 @@ productsRouter.get('/search', async (req: Request, res: Response) => {
         continue;
       }
       const listings = parseListingsPage(fetched.json);
-      totalPages = listings.totalPages;
+      totalPages = Math.min(listings.totalPages, SEARCH_MAX_PAGES);
       for (const hit of filterListingsByName(listings.results, q)) {
         if (matches.length >= SEARCH_MAX_RESULTS) break;
         // The store repeats items across listing pages; collapse duplicates
@@ -71,7 +145,16 @@ productsRouter.get('/search', async (req: Request, res: Response) => {
     res.status(500).json({ error: 'handshake_drift', message: 'catalogue changed shape unexpectedly' });
     return;
   }
-  res.json({ query: q, count: matches.length, incomplete, results: matches });
+  const body = { query: q, count: matches.length, incomplete, results: matches };
+  // Cache only COMPLETE answers — a partial walk must stay retryable.
+  if (memoEnabled && !incomplete) {
+    if (searchMemo.size >= SEARCH_MEMO_MAX) {
+      const oldest = searchMemo.keys().next().value;
+      if (oldest !== undefined) searchMemo.delete(oldest);
+    }
+    searchMemo.set(memoKey, { expires: Date.now() + SEARCH_MEMO_MS, body });
+  }
+  res.json(body);
 });
 
 productsRouter.get('/:id', async (req: Request, res: Response) => {

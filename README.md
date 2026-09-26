@@ -104,12 +104,21 @@ The backend refuses to start in production when `DATABASE_URL` or `CRON_SECRET` 
 
 - External cron POSTs `/api/internal/scrape-all` every 2 hours (12 runs/day).
 - No in-process loop anywhere: free-tier instances may sleep between invocations.
-- Keep-alive: `.github/workflows/keep-alive.yml` pings `GET /health` every
-  5 minutes so the instance is awake when the 2h cron fires. (A cold instance
-  makes Render's load balancer answer with an HTML error page that
-  cron-job.org rejects as "output too large" — the scheduled scrape would
-  never reach the backend. The assignment says: "keep the instance warm if
-  needed.") Scraping itself stays cron-job.org-only.
+- Keep-alive is layered, because a cold instance makes Render's load balancer
+  answer with an HTML error page that cron-job.org rejects as "output too
+  large" — the scheduled scrape would never reach the backend. (The assignment
+  says: "keep the instance warm if needed.")
+  1. Supabase pg_cron + pg_net ping `GET /health` every 10 minutes
+     (`2-59/10 * * * *`) — the trusted warm layer; it lives in the database,
+     next to the data, and cannot be skipped by the backend sleeping.
+  2. GitHub Actions `.github/workflows/keep-alive.yml` pings `/health` every
+     5 minutes as a redundant second opinion (GitHub has been firing
+     scheduled runs late on new repos, so layer 1 is the one relied on).
+  3. Supabase pg_cron re-fires `POST /api/internal/scrape-all` at :50 past
+     every even UTC hour (`50 */2 * * *`): if the primary cron trigger dies
+     entirely, the scrape still lands inside the same 2-hour window. The
+     per-product due-check turns any overlap into an honest `skipped` no-op,
+     so the rescue never fabricates work.
 - Each invocation scrapes every active target once to completion (max 3 attempts,
   backoff+jitter between transient failures), then writes the run summary.
 - Per-product frequency (bonus): each target carries `scrape_interval_hours`

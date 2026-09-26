@@ -18,15 +18,22 @@ const KEYFRAMES = `
 export function StatusPill({ outcome }: { outcome: string }) {
   const failed = outcome === "failed";
   const retried = outcome === "retried";
-  const label = failed ? "Failed" : retried ? "Retried" : outcome === "success" ? "Success" : outcome;
+  // An outcome this build does not know about. The raw string is kept for the
+  // title attribute (so a developer can debug it) but is NEVER the visible
+  // label: a user must not be shown "handshake_drift" or any other enum.
+  const known = outcome === "success" || outcome === "retried" || outcome === "failed";
+  const label = failed ? "Failed" : retried ? "Retried" : known ? "Success" : "Check completed";
   return (
     <span
+      // The raw value stays in the tooltip so a developer can debug an
+      // unexpected enum, but it is never the visible or spoken label.
+      title={known ? undefined : `unrecognised outcome: ${outcome}`}
       className={cn(
         "relative inline-flex h-7 items-center gap-2 rounded-full bg-surface pr-3 pl-2.5 text-[13px] font-medium text-foreground shadow-raised select-none",
       )}
     >
       <style>{KEYFRAMES}</style>
-      <span className="sr-only">Last scrape outcome: {outcome}</span>
+      <span className="sr-only">Last scrape outcome: {label}</span>
       <span aria-hidden className="relative grid size-2 place-items-center">
         <span
           className={cn(

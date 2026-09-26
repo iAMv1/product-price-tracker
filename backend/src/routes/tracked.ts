@@ -228,18 +228,29 @@ function isUuid(value: string): boolean {
 trackedRouter.get('/:id/history', async (req: Request, res: Response) => {
   const db = await requireDb(req, res);
   if (db === null) return;
+  const id = routeParam(req, 'id');
+  // Garbage ids must not reach the pg uuid cast and burn a 500.
+  if (!isUuid(id)) {
+    res.status(400).json({ error: 'bad_request', message: 'id must be a uuid' });
+    return;
+  }
   const limit = clampLimit(req.query['limit']);
   res.json({
-    results: await getHistory(db, routeParam(req, 'id'), limit),
+    results: await getHistory(db, id, limit),
   });
 });
 
 trackedRouter.get('/:id/scrape-log', async (req: Request, res: Response) => {
   const db = await requireDb(req, res);
   if (db === null) return;
+  const id = routeParam(req, 'id');
+  if (!isUuid(id)) {
+    res.status(400).json({ error: 'bad_request', message: 'id must be a uuid' });
+    return;
+  }
   const limit = clampLimit(req.query['limit']);
   res.json({
-    results: await getAttemptLog(db, routeParam(req, 'id'), limit),
+    results: await getAttemptLog(db, id, limit),
   });
 });
 
