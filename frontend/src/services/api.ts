@@ -164,6 +164,16 @@ export function updateInterval(id: string, scrapeIntervalHours: number): Promise
   });
 }
 
+/** DELETE must go through BASE_URL — a bare relative fetch 404s on Vercel. */
+export function untrackTarget(id: string): Promise<void> {
+  return fetch(`${BASE_URL}/api/tracked-products/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: { accept: 'application/json' },
+  }).then((r) => {
+    if (!r.ok) throw new Error(`untrack failed with HTTP ${r.status}`);
+  });
+}
+
 export function fetchHistory(id: string): Promise<HistoryEntry[]> {
   return getJson<{ results: HistoryEntry[] }>(
     `/api/tracked-products/${encodeURIComponent(id)}/history?limit=100`,

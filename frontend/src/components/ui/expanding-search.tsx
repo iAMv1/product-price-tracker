@@ -3,6 +3,7 @@ import { flushSync } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { useReducedMotion } from "../../hooks/useReducedMotion";
 import { cn } from "../../lib/cn";
+import { useTooltip } from "./tooltip-group";
 
 // Adapted from xevrion/ui-lab (MIT) src/lab/components/expanding-search.tsx.
 // Collapsed circle morphs into the field; `/` opens exactly like a click.
@@ -46,6 +47,7 @@ export function ExpandingSearch({
 }) {
   const reduceMotion = useReducedMotion();
   const id = useId();
+  const { anchorRef, triggerProps, tooltipProps } = useTooltip("Search products, press /");
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const rootRef = useRef<HTMLFormElement>(null);
@@ -128,19 +130,24 @@ export function ExpandingSearch({
         </svg>
 
         <button
-          ref={triggerRef}
+          ref={(el) => {
+            triggerRef.current = el;
+            anchorRef(el);
+          }}
           type="button"
           data-trigger
           aria-label={label}
           aria-expanded={open}
           aria-controls={id}
           aria-keyshortcuts={shortcut ?? undefined}
+          {...triggerProps}
           onClick={expand}
           className={cn(
             "absolute inset-0 rounded-full outline-hidden",
             open && "invisible",
           )}
         />
+        <span {...tooltipProps}>Search products, press /</span>
 
         <label htmlFor={id} className="sr-only">
           {label}

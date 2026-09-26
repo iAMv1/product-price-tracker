@@ -6,6 +6,7 @@ import Dashboard from "./pages/Dashboard";
 import Docs from "./pages/Docs";
 import Changelog from "./pages/Changelog";
 import Product from "./pages/Product";
+import { Toaster } from "./components/ui/toast-stack";
 
 const TITLES: Record<Route, string> = {
   landing: "Product Price Tracker — honest price history",
@@ -44,6 +45,7 @@ export default function App() {
         {route === "changelog" && <Changelog />}
         {route === "product" && <Product />}
       </motion.div>
+      <Toaster />
     </>
   );
 }

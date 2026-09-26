@@ -3,6 +3,8 @@ import { motion, useReducedMotion } from "motion/react";
 import { TargetCard } from "../components/TargetCard";
 import { SectionTitle, SiteNav } from "../components/site-nav";
 import { ExpandingSearch } from "../components/ui/expanding-search";
+import { TooltipGroup } from "../components/ui/tooltip-group";
+import { toast } from "../components/ui/toast-stack";
 import { ExportButton, type ExportStatus } from "../components/ui/export-button";
 import { RelativeTime } from "../components/ui/relative-time";
 import { formatRupees } from "../lib/format";
@@ -18,6 +20,7 @@ import {
   searchProducts,
   trackByProduct,
   trackProduct,
+  untrackTarget,
   type AlertItem,
   type ChangeEvent,
   type HealthResponse,
@@ -192,6 +195,10 @@ export default function Dashboard() {
       setNotice(
         `Tracking ${pickedMulti.length} option${pickedMulti.length === 1 ? "" : "s"} of ${picked.name} in one run: ${summary.succeeded} succeeded, ${summary.failed} failed.`,
       );
+      toast(
+        `Now tracking ${picked.name}`,
+        `${pickedMulti.length} option${pickedMulti.length === 1 ? "" : "s"} in one run`,
+      );
       setPicked(null);
       setPickedMulti([]);
       setHits(null);
@@ -218,6 +225,10 @@ export default function Dashboard() {
             ? `Tracking ${result.productName} (${result.selectedOption}). First scrape succeeded.`
             : `Tracking ${result.productName} (${result.selectedOption}). First scrape failed and is logged honestly.`,
       );
+      toast(
+        result.deduped ? "Already tracking" : "Now tracking",
+        `${result.productName} (${result.selectedOption})`,
+      );
       setPicked(null);
       setHits(null);
       await refreshTargets();
@@ -230,11 +241,10 @@ export default function Dashboard() {
 
   async function untrack(id: string) {
     try {
-      const response = await fetch(`/api/tracked-products/${encodeURIComponent(id)}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) throw new Error(`untrack failed with HTTP ${response.status}`);
+      await untrackTarget(id);
+      const name = targets.find((t) => t.id === id)?.productName ?? "Target";
       await refreshTargets();
+      toast("Untracked", name);
     } catch (error) {
       setTargetsError(error instanceof Error ? error.message : "Unknown error");
     }
@@ -444,17 +454,19 @@ export default function Dashboard() {
                 <kbd className="ml-1 rounded-md border border-border bg-surface px-1.5 py-0.5 font-mono text-[12px] text-muted">/</kbd>
               </h2>
               <span aria-hidden className="h-px flex-1 bg-border" />
-              <ExpandingSearch
-                placeholder="Product name"
-                onSearch={runSearch}
-                onQueryChange={setQuery}
-                onOpenChange={(open) => {
+              <TooltipGroup className="shrink-0">
+                <ExpandingSearch
+                  placeholder="Product name"
+                  onSearch={runSearch}
+                  onQueryChange={setQuery}
+                  onOpenChange={(open) => {
                   if (!open) {
                     setHits(null);
                     setQuery("");
                   }
                 }}
-              />
+                />
+              </TooltipGroup>
             </div>
             <p aria-live="polite" className="mt-2 text-[13px] text-muted tabular-nums">
               {searching
