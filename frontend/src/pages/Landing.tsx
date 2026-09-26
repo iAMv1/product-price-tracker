@@ -128,8 +128,8 @@ function HeroProof({ targets }: { targets: TrackedTarget[] }) {
             validated
           </span>
         </div>
-        <p className="mt-2 truncate text-[15px] font-semibold text-foreground">{t.productName}</p>
-        <p className="text-[13px] text-muted tabular-nums">
+        <p className="font-voice mt-2 truncate text-[17px] text-foreground">{t.productName}</p>
+        <p className="font-data text-[13px] text-muted tabular-nums">
           {t.selectedOption} &middot; stock {t.latest ? t.latest.stock : "awaiting first scrape"}
         </p>
         {t.latest ? (
@@ -137,10 +137,10 @@ function HeroProof({ targets }: { targets: TrackedTarget[] }) {
             {/* The number rolls, because a price that changes should look like
                 it changed rather than blink to a new figure. */}
             <div className="mt-3 flex items-baseline gap-1.5">
-              <span aria-hidden className="text-2xl font-medium text-muted">&#8377;</span>
+              <span aria-hidden className="font-data text-xl text-muted">&#8377;</span>
               <Odometer
                 value={t.latest.price}
-                className="text-4xl leading-none font-semibold tracking-tight text-foreground"
+                className="font-data text-4xl leading-none font-semibold text-foreground"
               />
             </div>
             <HeroSpark productId={t.id} />
