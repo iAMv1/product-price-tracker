@@ -1,4 +1,5 @@
 import { ThemeToggle } from "../components/ui/theme-toggle";
+import { TooltipGroup } from "../components/ui/tooltip-group";
 
 const ENTRIES: Array<{ v: string; date: string; items: string[] }> = [
   {
@@ -36,7 +37,9 @@ export default function Changelog() {
         <a href="#/" className="text-[15px] font-semibold tracking-tight">Price Tracker</a>
         <div className="flex items-center gap-1 text-sm">
           <a href="#/app" className="rounded-full px-3 py-1.5 hover:bg-foreground/10">Dashboard</a>
-          <ThemeToggle />
+          <TooltipGroup className="flex items-center gap-1 text-sm">
+            <ThemeToggle />
+          </TooltipGroup>
         </div>
       </header>
       <h1 className="mt-10 text-4xl font-semibold tracking-tight sm:text-5xl">Changelog</h1>

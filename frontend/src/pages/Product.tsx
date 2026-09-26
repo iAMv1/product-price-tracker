@@ -2,8 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import { SectionTitle, SiteNav } from "../components/site-nav";
 import { Odometer } from "../components/ui/odometer";
 import { RelativeTime } from "../components/ui/relative-time";
+import { SegmentedControl } from "../components/ui/segmented-control";
 import { Sparkline } from "../components/ui/sparkline";
 import { StatusPill } from "../components/ui/status-pill";
+import { toast } from "../components/ui/toast-stack";
 import { formatRupees, nextScrapeIn } from "../lib/format";
 import { useRoute } from "../router";
 import {
@@ -48,6 +50,7 @@ export default function Product() {
   const [detailError, setDetailError] = useState<string | null>(null);
   const [intervalHours, setIntervalHours] = useState(2);
   const [savingInterval, setSavingInterval] = useState(false);
+  const [tab, setTab] = useState("Overview");
 
   const load = useCallback(async (targetId: string | null) => {
     if (!targetId) {
@@ -94,6 +97,7 @@ export default function Product() {
       await updateInterval(state.target.id, hours);
       setIntervalHours(hours);
       await load(state.target.id);
+      toast("Schedule saved", `Scraping ${state.target.productName} every ${hours} h`);
     } catch (error) {
       setDetailError(error instanceof Error ? error.message : "Unknown error");
     } finally {
@@ -261,6 +265,17 @@ export default function Product() {
                   </div>
                 </dl>
 
+                {/* Section picker — instant, no page reload (Miller: 3 chunks) */}
+                <SegmentedControl
+                  className="mt-5"
+                  label="Product sections"
+                  options={["Overview", "History", "Log"]}
+                  value={tab}
+                  onChange={setTab}
+                />
+
+                {tab === "Overview" && (
+                  <>
                 {/* Schedule control */}
                 <form
                   className="mt-4 flex flex-wrap items-center gap-2 text-[13px]"
@@ -304,8 +319,11 @@ export default function Product() {
                     </>
                   )}
                 </section>
+                  </>
+                )}
 
                 {/* History */}
+                {tab === "History" && (
                 <section aria-label="Price history" className="mt-8">
                   <SectionTitle>Price history</SectionTitle>
                   {history.length === 0 ? (
@@ -335,8 +353,10 @@ export default function Product() {
                     </div>
                   )}
                 </section>
+                )}
 
                 {/* Log */}
+                {tab === "Log" && (
                 <section aria-label="Scrape log" className="mt-8 pb-12">
                   <SectionTitle>Scrape log</SectionTitle>
                   {log.length === 0 ? (
@@ -372,6 +392,7 @@ export default function Product() {
                     </div>
                   )}
                 </section>
+                )}
               </>
             );
           })()}

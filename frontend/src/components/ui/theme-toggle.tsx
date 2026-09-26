@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { motion, type Transition } from "motion/react";
+import { useTooltip } from "./tooltip-group";
 
 // Adapted from xevrion/ui-lab (MIT) src/lab/components/theme-toggle.tsx.
 // Pre-paint script lives in index.html; theme state on documentElement.
@@ -81,17 +82,21 @@ function setTheme(theme: Theme, x: number, y: number) {
 export function ThemeToggle() {
   const theme = useSyncExternalStore(subscribe, getTheme, () => null);
   const next = theme === "dark" ? "light" : "dark";
+  const { anchorRef, triggerProps, tooltipProps } = useTooltip(`Switch to ${next} theme`);
 
   return (
-    <button
-      type="button"
-      aria-label={`Switch to ${next} theme`}
-      onClick={(e) => {
-        const rect = e.currentTarget.getBoundingClientRect();
-        setTheme(next, rect.x + rect.width / 2, rect.y + rect.height / 2);
-      }}
-      className="relative flex size-10 items-center justify-center rounded-full text-muted transition-[scale,color,background-color] duration-150 ease-out hover:bg-surface hover:text-foreground active:scale-[0.96] motion-reduce:transition-none"
-    >
+    <>
+      <button
+        ref={anchorRef}
+        type="button"
+        aria-label={`Switch to ${next} theme`}
+        {...triggerProps}
+        onClick={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          setTheme(next, rect.x + rect.width / 2, rect.y + rect.height / 2);
+        }}
+        className="relative flex size-10 items-center justify-center rounded-full text-muted transition-[scale,color,background-color] duration-150 ease-out hover:bg-surface hover:text-foreground active:scale-[0.96] motion-reduce:transition-none"
+      >
       {theme && (
         <>
           <Icon visible={theme === "light"}>
@@ -103,7 +108,9 @@ export function ThemeToggle() {
           </Icon>
         </>
       )}
-    </button>
+      </button>
+      <span {...tooltipProps}>Switch to {next} theme</span>
+    </>
   );
 }
 

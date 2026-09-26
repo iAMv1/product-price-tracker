@@ -1,4 +1,5 @@
 import { ThemeToggle } from "./ui/theme-toggle";
+import { TooltipGroup } from "./ui/tooltip-group";
 
 /**
  * Shared sticky nav — one chrome across landing and dashboard (Jakob:
@@ -12,7 +13,8 @@ export function SiteNav({ variant }: { variant: "landing" | "app" }) {
         <a href="#/" className="text-[15px] font-semibold tracking-tight">
           Price Tracker
         </a>
-        <nav className="flex items-center gap-1 text-sm sm:gap-2">
+        <nav className="flex items-center">
+          <TooltipGroup className="flex items-center gap-1 text-sm sm:gap-2">
           {variant === "landing" && (
             <a href="#/app" className="rounded-full px-3 py-1.5 hover:bg-foreground/10">
               Dashboard
@@ -40,6 +42,7 @@ export function SiteNav({ variant }: { variant: "landing" | "app" }) {
             </a>
           )}
           <ThemeToggle />
+          </TooltipGroup>
         </nav>
       </div>
     </header>

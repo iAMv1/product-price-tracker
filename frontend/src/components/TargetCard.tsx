@@ -10,10 +10,12 @@ import {
 } from "../services/api";
 import { cn } from "../lib/cn";
 import { formatRupees, nextScrapeIn } from "../lib/format";
+import { DropdownMenu } from "./ui/dropdown-menu";
 import { Odometer } from "./ui/odometer";
 import { RelativeTime } from "./ui/relative-time";
 import { Sparkline } from "./ui/sparkline";
 import { StatusPill } from "./ui/status-pill";
+import { toast } from "./ui/toast-stack";
 
 function shortLabel(iso: string): string {
   const date = new Date(iso);
@@ -63,12 +65,6 @@ export function TargetCard({
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    if (!confirmUntrack) return;
-    const timer = setTimeout(() => setConfirmUntrack(false), 5000);
-    return () => clearTimeout(timer);
-  }, [confirmUntrack]);
-
   async function toggle() {
     const next = !expanded;
     setExpanded(next);
@@ -86,13 +82,19 @@ export function TargetCard({
   async function rescrape() {
     setRescraping(true);
     try {
-      await rescrapeTarget(target.id);
+      const result = await rescrapeTarget(target.id);
       await onChanged();
       if (expanded) {
         const [h, l] = await Promise.all([fetchHistory(target.id), fetchScrapeLog(target.id)]);
         setHistory(h);
         setLog(l);
       }
+      toast(
+        "Scrape complete",
+        result.failed > 0
+          ? `${target.productName} — ${result.failed} failed, see log`
+          : `${target.productName} — observation recorded`,
+      );
     } catch (error) {
       setDetailError(error instanceof Error ? error.message : "Unknown error");
     } finally {
@@ -107,6 +109,7 @@ export function TargetCard({
       await updateInterval(target.id, hours);
       setIntervalHours(hours);
       await onChanged();
+      toast("Schedule saved", `Scraping ${target.productName} every ${hours} h`);
     } catch (error) {
       setDetailError(error instanceof Error ? error.message : "Unknown error");
     } finally {
@@ -248,45 +251,76 @@ export function TargetCard({
         </button>
       </form>
 
-      <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">
-        <a
-          href={`#/product/${target.id}`}
-          className="inline-flex h-10 touch-manipulation items-center rounded-full border border-border px-4 text-[13px] font-medium text-foreground outline-hidden transition-[scale,background-color] duration-150 ease-out select-none hover:bg-foreground/10 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground active:scale-[0.96] motion-reduce:transition-[background-color]"
+      {confirmUntrack ? (
+        <div
+          className="mt-auto flex flex-wrap items-center gap-2 pt-4"
+          role="group"
+          aria-label="Confirm untrack"
         >
-          Quick view
-        </a>
-        <button
-          type="button"
-          onClick={toggle}
-          aria-expanded={expanded}
-          className="h-10 touch-manipulation rounded-full border border-border px-4 text-[13px] font-medium text-foreground outline-hidden transition-[scale,background-color] duration-150 ease-out select-none hover:bg-foreground/10 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground active:scale-[0.96] motion-reduce:transition-[background-color]"
-        >
-          {expanded ? "Hide history and log" : "History and log"}
-        </button>
-        <button
-          type="button"
-          onClick={rescrape}
-          disabled={rescraping}
-          className="h-10 touch-manipulation rounded-full bg-foreground px-4 text-[13px] font-medium text-background outline-hidden transition-[scale,opacity] duration-150 ease-out select-none hover:opacity-90 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground active:scale-[0.96] motion-reduce:transition-[opacity] disabled:opacity-50"
-        >
-          {rescraping ? "Scraping…" : "Scrape now"}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (confirmUntrack) {
+          <p className="text-sm text-foreground">Untrack this target?</p>
+          <button
+            type="button"
+            autoFocus
+            onClick={() => setConfirmUntrack(false)}
+            className="ml-auto h-10 touch-manipulation rounded-full border border-border px-4 text-[13px] font-medium text-foreground outline-hidden transition-[scale,background-color] duration-150 ease-out select-none hover:bg-foreground/10 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground active:scale-[0.96] motion-reduce:transition-[background-color]"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => {
               setConfirmUntrack(false);
               void onUntracked(target.id);
-            } else {
-              setConfirmUntrack(true);
-            }
-          }}
-          aria-live="polite"
-          className="ml-auto h-10 touch-manipulation rounded-full px-4 text-[13px] font-medium text-danger outline-hidden transition-[scale,background-color] duration-150 ease-out select-none hover:bg-danger/10 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground active:scale-[0.96] motion-reduce:transition-[background-color]"
-        >
-          {confirmUntrack ? "Confirm untrack?" : "Untrack"}
-        </button>
-      </div>
+            }}
+            className="h-10 touch-manipulation rounded-full bg-danger px-4 text-[13px] font-medium text-background outline-hidden transition-[scale,opacity] duration-150 ease-out select-none hover:opacity-90 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground active:scale-[0.96] motion-reduce:transition-[opacity]"
+          >
+            Untrack
+          </button>
+        </div>
+      ) : (
+        <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">
+          <a
+            href={`#/product/${target.id}`}
+            className="inline-flex h-10 touch-manipulation items-center rounded-full border border-border px-4 text-[13px] font-medium text-foreground outline-hidden transition-[scale,background-color] duration-150 ease-out select-none hover:bg-foreground/10 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground active:scale-[0.96] motion-reduce:transition-[background-color]"
+          >
+            Quick view
+          </a>
+          <button
+            type="button"
+            onClick={rescrape}
+            disabled={rescraping}
+            className="h-10 touch-manipulation rounded-full bg-foreground px-4 text-[13px] font-medium text-background outline-hidden transition-[scale,opacity] duration-150 ease-out select-none hover:opacity-90 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground active:scale-[0.96] motion-reduce:transition-[opacity] disabled:opacity-50"
+          >
+            {rescraping ? "Scraping…" : "Scrape now"}
+          </button>
+          <DropdownMenu
+            className="ml-auto"
+            align="end"
+            label="Actions"
+            items={[
+              {
+                label: expanded ? "Hide history and log" : "History and log",
+                icon: (
+                  <>
+                    <circle cx="8" cy="8" r="5.5" />
+                    <path d="M8 5v3l2 1" />
+                  </>
+                ),
+              },
+              { type: "separator" },
+              {
+                label: "Untrack",
+                destructive: true,
+                icon: <path d="M3.5 4.5h9M6.5 4.5v-1h3v1M5 4.5l.5 8h5l.5-8" />,
+              },
+            ]}
+            onSelect={(label) => {
+              if (label === "Untrack") setConfirmUntrack(true);
+              else void toggle();
+            }}
+          />
+        </div>
+      )}
 
       {detailError && <p className="mt-3 text-sm text-danger">{detailError}</p>}
 

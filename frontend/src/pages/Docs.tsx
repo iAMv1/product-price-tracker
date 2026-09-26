@@ -1,4 +1,5 @@
 import { ThemeToggle } from "../components/ui/theme-toggle";
+import { TooltipGroup } from "../components/ui/tooltip-group";
 
 /** Product docs: setup, schedule, env, API, auth/Google setup. */
 const SECTIONS: Array<{ id: string; title: string; body: string[]; code?: string }> = [
@@ -53,7 +54,9 @@ export default function Docs() {
         <a href="#/" className="text-[15px] font-semibold tracking-tight">Price Tracker</a>
         <div className="flex items-center gap-1 text-sm">
           <a href="#/app" className="rounded-full px-3 py-1.5 hover:bg-foreground/10">Dashboard</a>
-          <ThemeToggle />
+          <TooltipGroup className="flex items-center gap-1 text-sm">
+            <ThemeToggle />
+          </TooltipGroup>
         </div>
       </header>
       <h1 className="mt-10 text-4xl font-semibold tracking-tight sm:text-5xl">Docs</h1>
