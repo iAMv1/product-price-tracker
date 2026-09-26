@@ -291,19 +291,17 @@ export default function Product() {
                   {detailError && <span className="text-sm text-danger">{detailError}</span>}
                 </form>
 
-                {/* Trend */}
+                {/* Trend — the sparkline renders its own header (title + value + delta) */}
                 <section aria-label="Price trend" className="mt-8">
-                  <SectionTitle right={<span className="text-[13px] text-muted tabular-nums">{history.length} points</span>}>
-                    Price trend
-                  </SectionTitle>
                   {points.length > 1 ? (
-                    <div className="mt-3">
-                      <Sparkline data={points} title="Price history" format={(v) => formatRupees(v)} />
-                    </div>
+                    <Sparkline data={points} title="Price trend" format={(v) => formatRupees(v)} />
                   ) : (
-                    <p className="mt-3 text-sm text-muted">
-                      Not enough validated observations yet — the chart appears from the 2nd scrape on.
-                    </p>
+                    <>
+                      <SectionTitle>Price trend</SectionTitle>
+                      <p className="mt-3 text-sm text-muted">
+                        Not enough validated observations yet — the chart appears from the 2nd scrape on.
+                      </p>
+                    </>
                   )}
                 </section>
 
