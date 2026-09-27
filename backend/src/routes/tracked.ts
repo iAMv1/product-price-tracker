@@ -8,6 +8,7 @@ import {
   isUniqueViolation,
   listActiveTrackedProducts,
   parseIntervalHours,
+  pinTrackedProductSku,
   reactivateTrackedByIdentity,
   updateTrackedInterval,
   type TrackedProductRow,
@@ -47,6 +48,7 @@ trackedRouter.get('/', async (req: Request, res: Response) => {
         productUrl: row.product_url,
         scrapeIntervalHours:
           typeof row.scrape_interval_hours === 'number' ? row.scrape_interval_hours : 2,
+        sku: row.sku,
         latest: latest
           ? { price: latest.price, stock: latest.stock, observedAt: latest.observed_at }
           : null,
@@ -98,6 +100,7 @@ trackedRouter.post('/', async (req: Request, res: Response) => {
     return;
   }
   let productName: string;
+  let itemSku: string | undefined;
   try {
     const item = parseStoreItem(fetched.json);
     const matched = matchOption(item, selectedOption);
@@ -112,6 +115,7 @@ trackedRouter.post('/', async (req: Request, res: Response) => {
       return;
     }
     productName = item.name;
+    itemSku = item.sku;
   } catch {
     res.status(500).json({ error: 'handshake_drift', message: 'item changed shape unexpectedly' });
     return;
@@ -145,6 +149,11 @@ trackedRouter.post('/', async (req: Request, res: Response) => {
         candidate.selected_option === selectedOption,
     );
     if (existing !== undefined) {
+      // SKU pin rides along on dedupe too: unpinned legacy rows gain their
+      // pin here instead of waiting for the next scrape.
+      if (existing.sku == null && itemSku !== undefined) {
+        await pinTrackedProductSku(db, existing.id, itemSku);
+      }
       res.json({
         id: existing.id,
         storeProductId: existing.store_product_id,
@@ -164,6 +173,14 @@ trackedRouter.post('/', async (req: Request, res: Response) => {
     });
     if (reactivated === null) throw new Error('duplicate insert without existing row');
     row = reactivated;
+  }
+
+  // Pin the store's SKU before the first scrape so even the seeding run
+  // validates identity; pin is a no-op on already-pinned rows, and the local
+  // copy only fills when the row has no pin — never overwrites one.
+  if (itemSku !== undefined && row.sku == null) {
+    await pinTrackedProductSku(db, row.id, itemSku);
+    row = { ...row, sku: itemSku };
   }
 
   // Immediate first scrape: seeds history + log without waiting for cron.

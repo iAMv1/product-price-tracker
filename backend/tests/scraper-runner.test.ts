@@ -7,6 +7,7 @@ import {
   getExportRows,
   getHistory,
   getLatestValidated,
+  getTrackedProduct,
 } from '../src/persistence/repositories.js';
 import { backoffMs, BACKOFF_CAP_MS, MAX_ATTEMPTS } from '../src/scraper/retry.js';
 import {
@@ -343,5 +344,37 @@ describe('runAllTargets (SCRAPE-002)', () => {
       }
     }
     await assertRetriedNeverFinal(db, t3.id);
+  });
+
+  it('pins the observed SKU once and never rewrites a pin', async () => {
+    const db = setup();
+    const row = await createTrackedProduct(db, {
+      storeProductId: '2626',
+      productName: 'Redwick Ukulele Nano',
+      selectedOption: 'o1',
+      productUrl: 'https://demo.inelabteamdev.com/item/2626',
+    });
+    expect(row.sku).toBeNull();
+
+    // First success carries the store's SKU: the runner pins it.
+    await runAllTargets(db, {
+      triggerType: 'manual',
+      targets: [rowToTarget(row)],
+      scrape: scripted([{ ...success, sku: 'SK-2626-RE' }]).scrape,
+      sleep: sleepRecorder().sleep,
+    });
+    const pinned = await getTrackedProduct(db, row.id);
+    expect(pinned?.sku).toBe('SK-2626-RE');
+
+    // A later success reporting a different SKU must not move the pin.
+    // (Rejecting the stranger is scrapeProduct's job — covered in
+    // scraper-handshake.test.ts; the runner only refuses to re-pin.)
+    await runAllTargets(db, {
+      triggerType: 'manual',
+      targets: [rowToTarget(pinned!)],
+      scrape: scripted([{ ...success, sku: 'SK-9999-XX' }]).scrape,
+      sleep: sleepRecorder().sleep,
+    });
+    expect((await getTrackedProduct(db, row.id))?.sku).toBe('SK-2626-RE');
   });
 });

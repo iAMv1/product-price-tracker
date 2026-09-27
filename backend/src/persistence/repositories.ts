@@ -15,6 +15,8 @@ export interface TrackedProductRow {
   product_url: string;
   is_active: boolean;
   scrape_interval_hours: number;
+  /** Pinned item SKU (NULL until trust-on-first-use captures it). */
+  sku: string | null;
   /** Present when loaded through getTrackedProduct: seeded demo protection. */
   is_demo_seeded?: boolean;
 }
@@ -101,7 +103,7 @@ export async function createTrackedProduct(
   const result = await db.query(
     `INSERT INTO tracked_products (id, store_product_id, product_name, selected_option, product_url, scrape_interval_hours)
      VALUES ($1, $2, $3, $4, $5, $6)
-     RETURNING id, store_product_id, product_name, selected_option, product_url, is_active, scrape_interval_hours`,
+     RETURNING id, store_product_id, product_name, selected_option, product_url, is_active, scrape_interval_hours, sku`,
     [randomUUID(), input.storeProductId, input.productName, input.selectedOption, input.productUrl, interval],
   );
   return one<TrackedProductRow>(result);
@@ -142,7 +144,7 @@ export async function listActiveTrackedProducts(
   db: Queryable,
 ): Promise<TrackedProductRow[]> {
   const result = await db.query(
-    `SELECT id, store_product_id, product_name, selected_option, product_url, is_active, scrape_interval_hours
+    `SELECT id, store_product_id, product_name, selected_option, product_url, is_active, scrape_interval_hours, sku
      FROM tracked_products WHERE is_active = TRUE ORDER BY created_at`,
   );
   return rows<TrackedProductRow>(result);
@@ -297,11 +299,28 @@ export async function reactivateTrackedByIdentity(
      WHERE store_product_id = $1 AND selected_option = $2 AND product_url = $3
        AND is_active = FALSE
      RETURNING id, store_product_id, product_name, selected_option, product_url,
-               is_active, scrape_interval_hours`,
+               is_active, scrape_interval_hours, sku`,
     [identity.storeProductId, identity.selectedOption, identity.productUrl],
   );
   const [row] = rows<TrackedProductRow>(result);
   return row ?? null;
+}
+
+/**
+ * Trust-on-first-use SKU pin. Sets the row's SKU only when no pin exists;
+ * a pin, once set, is immutable through this path — drift surfaces as a
+ * `validation_identity` scrape failure instead of a silent re-pin.
+ */
+export async function pinTrackedProductSku(
+  db: Queryable,
+  trackedProductId: string,
+  sku: string,
+): Promise<void> {
+  await db.query(
+    `UPDATE tracked_products SET sku = $2, updated_at = now()
+     WHERE id = $1 AND sku IS NULL`,
+    [trackedProductId, sku],
+  );
 }
 
 export interface NonSuccessAttempt {
@@ -389,7 +408,7 @@ export async function getTrackedProduct(
 ): Promise<TrackedProductRow | null> {
   const result = await db.query(
     `SELECT id, store_product_id, product_name, selected_option, product_url, is_active,
-            scrape_interval_hours, is_demo_seeded
+            scrape_interval_hours, is_demo_seeded, sku
      FROM tracked_products WHERE id = $1`,
     [id],
   );
@@ -413,6 +432,7 @@ export async function getTrackedProduct(
     product_url: row['product_url'],
     is_active: row['is_active'] === true,
     scrape_interval_hours: interval,
+    sku: typeof row['sku'] === 'string' ? row['sku'] : null,
     is_demo_seeded: row['is_demo_seeded'] === true,
   };
 }

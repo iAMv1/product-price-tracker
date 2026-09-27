@@ -124,6 +124,24 @@ async function runScrape(
       now(),
     );
   }
+  // SKU pinning: the store's own SKU (e.g. "SK-2626-RE") is the second
+  // identity factor. A pinned row whose SKU drifts is a different product
+  // behind a reused id — fail loudly instead of tracking its price. No pin
+  // yet (first sighting) or no SKU observed: report, don't invent.
+  if (
+    input.expectedSku !== undefined &&
+    item.sku !== undefined &&
+    item.sku !== input.expectedSku
+  ) {
+    return fail(
+      input,
+      item.name,
+      'validation_identity',
+      `SKU mismatch: tracked as ${input.expectedSku}, store returned ${item.sku}`,
+      started,
+      now(),
+    );
+  }
 
   const matched = matchOption(item, input.selectedOption);
   if (!matched.ok) {
@@ -184,5 +202,6 @@ async function runScrape(
     fetchStrategy: 'http',
     parserVersion: PARSER_VERSION,
   };
+  if (item.sku !== undefined) success.sku = item.sku;
   return success;
 }

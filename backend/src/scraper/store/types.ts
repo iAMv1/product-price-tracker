@@ -17,6 +17,13 @@ export interface ScrapeInput {
   selectedOption: string;
   /** Product URL — part of the tracked identity, carried for evidence. */
   productUrl: string;
+  /**
+   * Pinned SKU from the tracked row (e.g. "SK-2626-RE"). Absent on first
+   * sighting: the scraper reports what it sees and the runner pins it
+   * (trust-on-first-use). Present afterwards: a mismatch fails the scrape
+   * as `validation_identity` instead of recording a stranger's price.
+   */
+  expectedSku?: string;
 }
 
 export interface ScrapeSuccess {
@@ -27,6 +34,8 @@ export interface ScrapeSuccess {
   price: number;
   /** Stock preserved as text: the DB column is TEXT (counts and labels both). */
   stock: string;
+  /** Item SKU as the store reports it (absent when the store omits it). */
+  sku?: string;
   durationMs: number;
   fetchStrategy: 'http';
   parserVersion: string;

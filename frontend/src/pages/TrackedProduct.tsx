@@ -287,7 +287,8 @@ export function TrackedProduct({ targetId }: { targetId: string }) {
               {target.lastScrape && <OutcomeBadge outcome={target.lastScrape.outcome} />}
             </div>
             <p className="mt-2 text-sm text-muted tabular-nums">
-              {target.storeProductId} · {target.selectedOption} ·{" "}
+              {target.storeProductId} · {target.selectedOption}
+              {target.sku !== null && <> · SKU {target.sku}</>} ·{" "}
               <a
                 href={target.productUrl}
                 target="_blank"

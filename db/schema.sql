@@ -28,6 +28,11 @@ CREATE TABLE IF NOT EXISTS tracked_products (
   -- shared submission dashboard keeps its tracked set (open writes stay open
   -- for everything visitors track themselves).
   is_demo_seeded BOOLEAN NOT NULL DEFAULT FALSE,
+  -- Pinned item SKU (e.g. "SK-2626-RE"), trust-on-first-use: NULL until the
+  -- first observation captures it, immutable afterwards. A scrape whose item
+  -- SKU differs from the pin fails as validation_identity instead of
+  -- recording a stranger's price.
+  sku TEXT,
   scrape_interval_hours INTEGER NOT NULL DEFAULT 2
     CONSTRAINT tracked_products_interval_check CHECK (scrape_interval_hours BETWEEN 1 AND 168),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

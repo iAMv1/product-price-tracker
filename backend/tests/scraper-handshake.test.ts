@@ -221,4 +221,29 @@ describe('scrapeProduct (SCRAPE-001)', () => {
       transient: false,
     });
   });
+
+  it('reports the observed SKU and enforces a pinned one', async () => {
+    const deps = {
+      baseUrl: 'https://store.test',
+      fetchImpl: stubBackend(),
+      wasmImpl: stubWasm,
+    };
+    // First sighting (no pin): success carries what the store reports.
+    const fresh = await scrapeProduct(input, deps);
+    expect(fresh).toMatchObject({ ok: true, sku: 'SK-2626-RE' });
+
+    // Pinned and matching: passes.
+    const pinned = await scrapeProduct({ ...input, expectedSku: 'SK-2626-RE' }, deps);
+    expect(pinned).toMatchObject({ ok: true });
+
+    // Pinned and drifted: terminal identity failure, never a wrong price.
+    const drifted = await scrapeProduct({ ...input, expectedSku: 'SK-9999-XX' }, deps);
+    expect(drifted).toMatchObject({
+      ok: false,
+      errorCode: 'validation_identity',
+      transient: false,
+    });
+    if (drifted.ok) throw new Error('expected failure');
+    expect(drifted.errorMessage).toContain('SK-2626-RE');
+  });
 });

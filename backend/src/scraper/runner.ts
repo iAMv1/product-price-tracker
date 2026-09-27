@@ -2,6 +2,7 @@ import type { Queryable } from '../persistence/db.js';
 import {
   completeScrapeRun,
   createScrapeRun,
+  pinTrackedProductSku,
   recordNonSuccessAttempt,
   recordSuccessfulAttempt,
   type TrackedProductRow,
@@ -25,6 +26,8 @@ export interface TargetInput {
   selectedOption: string;
   productUrl: string;
   scrapeIntervalHours?: number;
+  /** Pinned SKU (absent until trust-on-first-use captures it). */
+  expectedSku?: string;
 }
 
 export function rowToTarget(row: TrackedProductRow): TargetInput {
@@ -36,6 +39,7 @@ export function rowToTarget(row: TrackedProductRow): TargetInput {
     productUrl: row.product_url,
     scrapeIntervalHours:
       typeof row.scrape_interval_hours === 'number' ? row.scrape_interval_hours : 2,
+    ...(typeof row.sku === 'string' && row.sku !== '' ? { expectedSku: row.sku } : {}),
   };
 }
 
@@ -45,6 +49,8 @@ export interface TargetOutcome {
   targetId: string;
   finalOutcome: 'success' | 'failed';
   attempts: number;
+  /** Item SKU observed on the final successful attempt (TOFU pinning). */
+  observedSku?: string;
 }
 
 /**
@@ -71,6 +77,7 @@ export async function runTarget(
         productId: target.storeProductId,
         selectedOption: target.selectedOption,
         productUrl: target.productUrl,
+        ...(target.expectedSku !== undefined ? { expectedSku: target.expectedSku } : {}),
       });
     } catch (error) {
       const message = errMsg(error);
@@ -99,7 +106,12 @@ export async function runTarget(
         durationMs: result.durationMs,
       });
       timed('success', attempt, scrapeMs, Date.now() - commitStart);
-      return { targetId: target.id, finalOutcome: 'success', attempts: attempt };
+      return {
+        targetId: target.id,
+        finalOutcome: 'success',
+        attempts: attempt,
+        ...(result.sku !== undefined ? { observedSku: result.sku } : {}),
+      };
     }
 
     const budgetRemains = attempt < MAX_ATTEMPTS;
@@ -194,6 +206,12 @@ export async function executeScrapeRun(
     totalAttempts += outcome.attempts;
     if (outcome.finalOutcome === 'success') succeeded += 1;
     else failed += 1;
+    // Trust-on-first-use SKU pinning: the first observed SKU becomes the
+    // row's pin; a pin, once set, is never overwritten here — only a
+    // mismatch failure (validation_identity) can surface drift.
+    if (outcome.observedSku !== undefined) {
+      await pinTrackedProductSku(db, target.id, outcome.observedSku);
+    }
     await input.hooks?.onTargetDone?.();
   }
   // Retried rows are exactly the non-final attempts of failed-then-recovered

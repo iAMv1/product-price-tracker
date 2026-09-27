@@ -53,6 +53,8 @@ export interface TrackedTarget {
   selectedOption: string;
   productUrl: string;
   scrapeIntervalHours?: number;
+  /** Pinned store SKU (null until the first observation captures it). */
+  sku: string | null;
   latest: { price: number; stock: string; observedAt: string } | null;
   lastScrape: {
     outcome: string;
