@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { AppShell } from "../components/app/AppShell";
 import { Eyebrow } from "../components/app/primitives";
 import { ProductMark } from "../components/app/primitives";
@@ -35,6 +35,51 @@ export default function Search() {
 
   const submitted = search.query.trim() !== "";
   const hits = search.hits;
+  const listId = useId();
+  // Combobox active descendant; reset whenever the result set changes.
+  const [active, setActive] = useState(-1);
+  useEffect(() => {
+    setActive(-1);
+  }, [hits]);
+
+  // Type-ahead: the results list IS the combobox listbox — typing searches
+  // live (debounced) without touching the hash, so Back still means "the
+  // submitted search". One list, one keyboard contract, no duplicate UI.
+  useEffect(() => {
+    const term = search.query.trim();
+    if (term.length < 2) return;
+    const timer = window.setTimeout(() => void search.runSearch(term), 350);
+    return () => window.clearTimeout(timer);
+    // Runs on keystrokes only; runSearch is stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search.query]);
+
+  function onInputKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    const options = hits ?? [];
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      if (options.length === 0) return;
+      event.preventDefault();
+      setActive((i) => {
+        const next = event.key === "ArrowDown" ? i + 1 : i - 1;
+        if (next < 0) return options.length - 1;
+        if (next >= options.length) return 0;
+        return next;
+      });
+    } else if (event.key === "Enter") {
+      const hit = active >= 0 ? options[active] : undefined;
+      if (hit) {
+        event.preventDefault();
+        goHash(productHref(hit.storeProductId));
+      }
+    } else if (event.key === "Escape") {
+      search.cancelSearch();
+    }
+  }
+
+  const activeId =
+    active >= 0 && hits !== null && active < hits.length
+      ? `${listId}-opt-${active}`
+      : undefined;
 
   return (
     <AppShell
@@ -90,9 +135,15 @@ export default function Search() {
               id="store-search"
               value={search.query}
               onChange={(event) => search.setQuery(event.target.value)}
+              onKeyDown={onInputKeyDown}
               placeholder="Search products…"
               autoComplete="off"
               className={inputClassName}
+              role="combobox"
+              aria-expanded={hits !== null && hits.length > 0}
+              aria-controls={listId}
+              aria-activedescendant={activeId}
+              aria-autocomplete="list"
             />
             <div className="flex gap-2">
               <PrimaryButton type="submit" disabled={search.searching} className="sm:w-32">
@@ -106,6 +157,14 @@ export default function Search() {
             </div>
           </form>
 
+          {search.query.trim().length === 1 && (
+            <p className="mt-2 text-[13px] text-muted">Enter at least 2 characters.</p>
+          )}
+          {hits !== null && hits.length > 0 && (
+            <p className="mt-2 text-[13px] text-muted">
+              Arrow keys browse, Enter opens — or click a row.
+            </p>
+          )}
           {search.searching && (
             <p role="status" className="mt-3 text-sm text-muted">
               Searching the store{search.elapsed >= 2 ? ` (${search.elapsed} s elapsed)` : ""}. The
@@ -144,12 +203,21 @@ export default function Search() {
           )}
 
           {hits !== null && hits.length > 0 && (
-            <ul className="mt-4 grid gap-3">
-              {hits.map((hit) => (
-                <li key={hit.storeProductId}>
+            <ul id={listId} role="listbox" aria-label="Store results" className="mt-4 grid gap-3">
+              {hits.map((hit, index) => (
+                <li
+                  key={hit.storeProductId}
+                  id={`${listId}-opt-${index}`}
+                  role="option"
+                  aria-selected={index === active}
+                >
                   <a
                     href={productHref(hit.storeProductId)}
-                    className="flex items-center gap-4 rounded-2xl border border-border bg-card px-4 py-3.5 outline-hidden transition-colors hover:border-foreground/40 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-primary"
+                    className={`flex items-center gap-4 rounded-2xl border bg-card px-4 py-3.5 outline-hidden transition-colors focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-primary ${
+                      index === active
+                        ? "border-foreground"
+                        : "border-border hover:border-foreground/40"
+                    }`}
                   >
                     <ProductMark name={hit.name} />
                     <span className="min-w-0 flex-1">

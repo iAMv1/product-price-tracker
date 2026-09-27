@@ -28,13 +28,19 @@ export function TrackingSettingsForm({
     : [initialHours, ...standards].sort((a, b) => a - b);
 
   async function save() {
-    const bounded = Math.min(168, Math.max(1, Math.round(Number(hours) || 2)));
+    // Explicit validation, never a silent clamp: an out-of-range value is an
+    // error the user sees, not a quiet rewrite to something they didn't pick.
+    const raw = Number(hours);
+    if (!Number.isInteger(raw) || raw < 1 || raw > 168) {
+      setError("Scrape interval must be a whole number of hours from 1 to 168.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      await updateInterval(targetId, bounded);
-      setHours(bounded);
-      toast("Schedule saved", `Scraping ${productName} every ${bounded} h`);
+      await updateInterval(targetId, raw);
+      setHours(raw);
+      toast("Schedule saved", `Scraping ${productName} every ${raw} h`);
       onSaved();
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Could not save schedule");

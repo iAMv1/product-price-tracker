@@ -1,13 +1,13 @@
 import { Router, type Request, type Response } from 'express';
 import {
   createTrackedProduct,
-  clampIntervalHours,
   getAttemptLog,
   getHistory,
   getLatestValidated,
   getTrackedProduct,
   isUniqueViolation,
   listActiveTrackedProducts,
+  parseIntervalHours,
   reactivateTrackedByIdentity,
   updateTrackedInterval,
   type TrackedProductRow,
@@ -79,6 +79,13 @@ trackedRouter.post('/', async (req: Request, res: Response) => {
   const { storeFetch, scrape } = readDeps(req);
   const baseUrl = storeBaseUrl();
   const itemId = Number(storeProductId);
+  if (!Number.isSafeInteger(itemId)) {
+    res.status(400).json({
+      error: 'bad_request',
+      message: 'storeProductId exceeds the safe integer range',
+    });
+    return;
+  }
 
   const fetched = await fetchJson(itemUrl(baseUrl, itemId), `item ${itemId}`, storeFetch);
   if (!fetched.ok) {
@@ -111,9 +118,14 @@ trackedRouter.post('/', async (req: Request, res: Response) => {
   }
 
   const url = productUrl(storeProductId);
-  const interval = clampIntervalHours(
-    typeof body['scrapeIntervalHours'] === 'number' ? body['scrapeIntervalHours'] : 2,
-  );
+  const interval = parseIntervalHours(body['scrapeIntervalHours']);
+  if (interval === null) {
+    res.status(400).json({
+      error: 'bad_interval',
+      message: 'scrapeIntervalHours must be a whole number of hours from 1 to 168',
+    });
+    return;
+  }
   let row: TrackedProductRow;
   try {
     row = await createTrackedProduct(db, {
@@ -217,7 +229,14 @@ trackedRouter.patch('/:id', async (req: Request, res: Response) => {
     );
   }
   if (hasInterval) {
-    const hours = clampIntervalHours(body['scrapeIntervalHours']);
+    const hours = body['scrapeIntervalHours'] as number;
+    if (hours < 1 || hours > 168) {
+      res.status(400).json({
+        error: 'bad_interval',
+        message: 'scrapeIntervalHours must be a whole number of hours from 1 to 168',
+      });
+      return;
+    }
     await updateTrackedInterval(db, id, hours);
   }
   const after = await getTrackedProduct(db, id);

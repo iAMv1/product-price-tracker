@@ -19,12 +19,13 @@ export function TrackedProductRow({
 }: {
   target: TrackedTarget;
   onChanged: () => Promise<void>;
-  onUntracked: (id: string) => void;
+  onUntracked: (id: string) => Promise<void>;
 }) {
   const [values, setValues] = useState<number[] | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
+  const [removing, setRemoving] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -147,10 +148,22 @@ export function TrackedProductRow({
         title="Remove this product?"
         body="It will leave the dashboard, but its attempts and validated history stay in exports."
         confirmLabel="Remove"
+        busy={removing}
         onCancel={() => setRemoveOpen(false)}
         onConfirm={() => {
-          setRemoveOpen(false);
-          onUntracked(target.id);
+          // Confirmed removal: the row stays until the server answers 204.
+          // A failure leaves the row in place; the dashboard shows why.
+          void (async () => {
+            setRemoving(true);
+            try {
+              await onUntracked(target.id);
+              setRemoveOpen(false);
+            } catch {
+              setRemoveOpen(false);
+            } finally {
+              setRemoving(false);
+            }
+          })();
         }}
       />
     </Card>

@@ -4,6 +4,7 @@ import {
   getLatestValidated,
   listActiveTrackedProducts,
   isUniqueViolation,
+  parseIntervalHours,
   reactivateTrackedByIdentity,
 } from '../persistence/repositories.js';
 import { rowToTarget, runAllTargets } from '../scraper/runner.js';
@@ -32,10 +33,17 @@ byProductRouter.post('/by-product', async (req: Request, res: Response) => {
     });
     return;
   }
+  const itemId = Number(storeProductId);
+  if (!Number.isSafeInteger(itemId)) {
+    res.status(400).json({
+      error: 'bad_request',
+      message: 'storeProductId exceeds the safe integer range',
+    });
+    return;
+  }
   const unique = [...new Set(options)];
   const { storeFetch, scrape } = readDeps(req);
   const baseUrl = storeBaseUrl();
-  const itemId = Number(storeProductId);
 
   const fetched = await fetchJson(itemUrl(baseUrl, itemId), `item ${itemId}`, storeFetch);
   if (!fetched.ok) {
@@ -66,8 +74,14 @@ byProductRouter.post('/by-product', async (req: Request, res: Response) => {
   }
 
   const url = productUrl(storeProductId);
-  const interval =
-    typeof body['scrapeIntervalHours'] === 'number' ? body['scrapeIntervalHours'] : 2;
+  const interval = parseIntervalHours(body['scrapeIntervalHours']);
+  if (interval === null) {
+    res.status(400).json({
+      error: 'bad_interval',
+      message: 'scrapeIntervalHours must be a whole number of hours from 1 to 168',
+    });
+    return;
+  }
   const targets = [];
   for (const opt of unique) {
     try {

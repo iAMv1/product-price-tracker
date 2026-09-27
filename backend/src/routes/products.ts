@@ -9,6 +9,13 @@ import {
 } from '../scraper/store/catalog.js';
 import { productUrl, readDeps, routeParam, storeBaseUrl } from '../http/deps.js';
 
+/** Digit strings beyond MAX_SAFE_INTEGER lose precision in Number() — reject before any fetch. */
+function parseStoreId(digits: string): number | null {
+  if (!/^\d+$/.test(digits)) return null;
+  const n = Number(digits);
+  return Number.isSafeInteger(n) ? n : null;
+}
+
 /**
  * Catalogue reads (TRACK-001). Plain JSON, no handshake, no database.
  * Search is client-side: the store ignores `?q=`, so we walk listing pages
@@ -63,13 +70,19 @@ productsRouter.get('/search', async (req: Request, res: Response) => {
   // nothing there — one direct item request answers the id/URL case instead
   // of a slow 24-page walk that can never succeed.
   const trimmed = q.trim();
-  const idFromQuery = /^\d+$/.test(trimmed)
-    ? trimmed
-    : (trimmed.match(/\/item\/(\d+)/i)?.[1] ?? null);
-  if (idFromQuery !== null) {
+  const rawId =
+    /^\d+$/.test(trimmed) ? trimmed : (trimmed.match(/\/item\/(\d+)/i)?.[1] ?? null);
+  if (rawId !== null) {
+    const numericId = parseStoreId(rawId);
+    if (numericId === null) {
+      res
+        .status(400)
+        .json({ error: 'bad_request', message: 'product id exceeds the safe integer range' });
+      return;
+    }
     const fetched = await fetchJsonWithRetry(
-      itemUrl(baseUrl, Number(idFromQuery)),
-      `item ${idFromQuery}`,
+      itemUrl(baseUrl, numericId),
+      `item ${rawId}`,
       storeFetch,
     );
     if (fetched.ok) {
@@ -190,13 +203,19 @@ productsRouter.get('/search', async (req: Request, res: Response) => {
 
 productsRouter.get('/:id', async (req: Request, res: Response) => {
   const id = routeParam(req, 'id');
-  if (!/^\d+$/.test(id)) {
-    res.status(400).json({ error: 'bad_request', message: 'product id must be numeric' });
+  const numericId = parseStoreId(id);
+  if (numericId === null) {
+    res.status(400).json({
+      error: 'bad_request',
+      message: /^\d+$/.test(id)
+        ? 'product id exceeds the safe integer range'
+        : 'product id must be numeric',
+    });
     return;
   }
   const { storeFetch } = readDeps(req);
   const fetched = await fetchJsonWithRetry(
-    itemUrl(storeBaseUrl(), Number(id)),
+    itemUrl(storeBaseUrl(), numericId),
     `item ${id}`,
     storeFetch,
   );

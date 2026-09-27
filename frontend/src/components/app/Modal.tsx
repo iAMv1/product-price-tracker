@@ -10,6 +10,14 @@ import { cn } from "../../lib/cn";
  * Entrance is a 180ms fade + rise (reason: an overlay appearing instantly
  * causes change blindness — the motion marks the layer change). Exits mirror
  * it so dismissal reads as the reverse action, not a disappearance.
+ *
+ * Two correctness rules:
+ * 1. Focus is TRAPPED: Tab/Shift+Tab cycle inside the panel, never escaping
+ *    to the page behind. An untrapped modal is a keyboard trap in reverse.
+ * 2. The effect depends on `open` only. Callers pass inline `onClose`
+ *    closures that change identity every render; depending on them would
+ *    tear down and rebuild focus/scroll handling mid-interaction. The latest
+ *    onClose is read through a ref instead.
  */
 export function Modal({
   open,
@@ -27,13 +35,44 @@ export function Modal({
   const reduce = useReducedMotion();
   const panelRef = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<Element | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
     previousFocus.current = document.activeElement;
     panelRef.current?.focus({ preventScroll: true });
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") {
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab" || !(event.target instanceof HTMLElement)) return;
+      const panel = panelRef.current;
+      if (!panel || !panel.contains(event.target)) return;
+      // No layout-based visibility filter (offsetParent/getClientRects):
+      // jsdom reports no layout, so such a filter would empty the list in
+      // tests. Disabled controls are already excluded by the selector, and
+      // dialogs never render display:none focusables.
+      const focusables = Array.from(
+        panel.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+      if (focusables.length === 0) {
+        event.preventDefault();
+        panel.focus({ preventScroll: true });
+        return;
+      }
+      const first = focusables[0] as HTMLElement;
+      const last = focusables[focusables.length - 1] as HTMLElement;
+      if (event.shiftKey && event.target === first) {
+        event.preventDefault();
+        last.focus({ preventScroll: true });
+      } else if (!event.shiftKey && event.target === last) {
+        event.preventDefault();
+        first.focus({ preventScroll: true });
+      }
     };
     document.addEventListener("keydown", onKeyDown);
     const previousOverflow = document.body.style.overflow;
@@ -45,7 +84,7 @@ export function Modal({
         previousFocus.current.focus({ preventScroll: true });
       }
     };
-  }, [open, onClose]);
+  }, [open]);
 
   const fade = reduce
     ? {}

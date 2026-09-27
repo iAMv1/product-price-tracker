@@ -165,7 +165,7 @@ Full recording script: `backend/tools/HEADED_RECORDING.md`.
 
 | Bonus | Where |
 |---|---|
-| Price-drop / back-in-stock alerts (in-app badges + banner; SendGrid hook optional via `SENDGRID_API_KEY`/`ALERT_TO`) | `GET /api/alerts`, dashboard Alerts section |
+| Price-drop / back-in-stock alerts (in-app badges + banner; email is a documented hook/stub via `SENDGRID_API_KEY`/`ALERT_TO`, not a live sender) | `GET /api/alerts`, dashboard Alerts section |
 | Multi-product overview + extra info (counts, avg price, brand/category in search, option axis in picker) | Dashboard Overview section |
 | Change detection (structure-drift flags from terminal error codes) | `GET /api/change-events`, dashboard watch banner |
 | Configurable scrape frequency per product (1–168h, scheduler respects it) | `scrape_interval_hours`, card control |
@@ -177,7 +177,8 @@ Full recording script: `backend/tools/HEADED_RECORDING.md`.
 UI components adapted from [xevrion/ui-lab](https://lab.xevrion.dev/)
 (**MIT License**): toast stack, dropdown menu, segmented control, tooltip
 group, theme toggle, expanding search, odometer, sparkline, relative time,
-scroll reveal. Every adapted file carries its source path in a header comment;
+live indicator, skeleton loader, stat counter. Every adapted file carries its
+source path in a header comment;
 all project code around them is original. `motion` and other MIT npm
 dependencies are listed in the lockfiles. See `DESIGN_NOTE.md` for the full
 AI-usage disclosure required by the assignment guidelines.

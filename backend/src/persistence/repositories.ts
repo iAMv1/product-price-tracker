@@ -113,6 +113,19 @@ export function clampIntervalHours(value: unknown): number {
   return n;
 }
 
+/**
+ * Strict interval parsing for request boundaries. Unlike the clamp above
+ * (kept as a repository-level backstop), an explicitly supplied invalid
+ * value is a client error, not a silent rewrite to 2: absent → default 2,
+ * present-but-invalid → null so routes can answer 400.
+ */
+export function parseIntervalHours(value: unknown): number | null {
+  if (value === undefined) return 2;
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isInteger(n) || n < 1 || n > 168) return null;
+  return n;
+}
+
 export async function updateTrackedInterval(
   db: Queryable,
   id: string,

@@ -171,12 +171,16 @@ function TargetScheduleRow({
     : [initial, ...INTERVALS].sort((a, b) => a - b);
 
   async function save() {
-    const bounded = Math.min(168, Math.max(1, Math.round(Number(hours) || 2)));
+    const raw = Number(hours);
+    if (!Number.isInteger(raw) || raw < 1 || raw > 168) {
+      setError("Scrape interval must be a whole number of hours from 1 to 168.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      await updateInterval(target.id, bounded);
-      toast("Schedule saved", `Scraping ${target.productName} every ${bounded} h`);
+      await updateInterval(target.id, raw);
+      toast("Schedule saved", `Scraping ${target.productName} every ${raw} h`);
       onSaved();
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Could not save schedule");

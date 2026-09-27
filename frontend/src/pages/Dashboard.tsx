@@ -29,7 +29,7 @@ function describeDatabase(health: HealthResponse): string {
 }
 
 export default function Dashboard() {
-  const { boot, retryBoot, targets, targetsError, alerts, runs, refresh, untrack } =
+  const { boot, retryBoot, targets, targetsError, alerts, runs, feedOk, refresh, refreshFeed, untrack } =
     useDashboardData();
   const [exportOpen, setExportOpen] = useState(false);
   const work = useWorkIndicator({
@@ -40,12 +40,26 @@ export default function Dashboard() {
 
   const priceDrops = alerts.filter((alert) => alert.type === "price_drop").length;
   const failures = alerts.filter((alert) => alert.type === "scrape_failed").length;
+  // A failed optional feed renders as unavailable, never as a confident zero.
   const stats = [
-    { label: "Tracked products", value: targets.length, note: "Active targets" },
-    { label: "Price drops", value: priceDrops, note: "From validated checks" },
-    { label: "Failed checks", value: failures, note: "Latest failed attempts" },
-    { label: "Recent runs", value: runs.length, note: "Latest 10 scheduler runs" },
+    { label: "Tracked products", value: targets.length as number | null, note: "Active targets" },
+    {
+      label: "Price drops",
+      value: feedOk.alerts ? (priceDrops as number | null) : null,
+      note: feedOk.alerts ? "From validated checks" : "Alerts unavailable",
+    },
+    {
+      label: "Failed checks",
+      value: feedOk.alerts ? (failures as number | null) : null,
+      note: feedOk.alerts ? "Latest failed attempts" : "Alerts unavailable",
+    },
+    {
+      label: "Recent runs",
+      value: feedOk.runs ? (runs.length as number | null) : null,
+      note: feedOk.runs ? "Latest 10 scheduler runs" : "Run history unavailable",
+    },
   ];
+  const feedDown = !feedOk.alerts || !feedOk.changes || !feedOk.runs;
 
   if (boot.kind === "error") {
     return (
@@ -95,12 +109,36 @@ export default function Dashboard() {
               <Card key={stat.label} className="p-4">
                 <Eyebrow>{stat.label}</Eyebrow>
                 <p className="mt-2 text-[28px] leading-none font-semibold tabular-nums">
-                  <CountUp value={stat.value} />
+                  {stat.value === null ? (
+                    <span aria-label={`${stat.label} unavailable`}>—</span>
+                  ) : (
+                    <CountUp value={stat.value} />
+                  )}
                 </p>
                 <p className="mt-2 text-[13px] text-muted">{stat.note}</p>
               </Card>
             ))}
       </div>
+
+      {feedDown && boot.kind === "ready" && (
+        <div
+          role="status"
+          className="mt-4 rounded-2xl border border-alert/40 bg-alert/10 px-5 py-4"
+        >
+          <p className="text-sm font-semibold text-alert-fg">Dashboard data partially unavailable</p>
+          <ul className="mt-2 grid gap-1 text-sm text-muted">
+            <li>{feedOk.alerts ? "✓ Alerts available" : "⚠ Alerts temporarily unavailable"}</li>
+            <li>{feedOk.changes ? "✓ Storefront changes available" : "⚠ Storefront changes temporarily unavailable"}</li>
+            <li>{feedOk.runs ? "✓ Run history available" : "⚠ Run history temporarily unavailable"}</li>
+          </ul>
+          <p className="mt-2 text-[13px] text-muted">
+            Tracked products above are unaffected — only these secondary feeds failed to load.
+          </p>
+          <SecondaryButton className="mt-3" onClick={() => void refreshFeed()}>
+            Retry secondary data
+          </SecondaryButton>
+        </div>
+      )}
 
       <section aria-label="Tracked products" className="mt-8">
         <div className="mb-3 flex items-center justify-between gap-3">

@@ -12,6 +12,7 @@ import {
   type RunEntry,
   type TrackedTarget,
 } from "../services/api";
+import { toast } from "../components/ui/toast-stack";
 
 export type BootState =
   | { kind: "loading" }
@@ -28,6 +29,8 @@ export type BootState =
  * 1. The bonus feed (alerts / change events / runs) is OPTIONAL. A failure
  *    there must never take down the dashboard — a price tracker that hides
  *    tracked prices because an alert query failed is lying by omission.
+ *    Instead each feed reports its own availability (`feedOk`), so the page
+ *    says "unavailable" rather than rendering a confident zero.
  * 2. Targets are the source of truth. `refresh` re-reads them after any
  *    mutation so the page never shows a price the backend no longer has.
  * 3. A boot failure is surfaced, never swallowed.
@@ -39,21 +42,26 @@ export function useDashboardData() {
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [changes, setChanges] = useState<ChangeEvent[]>([]);
   const [runs, setRuns] = useState<RunEntry[]>([]);
+  // Per-feed availability: a failed optional feed must read as "unavailable",
+  // never as a confident zero. settled-all keeps one bad feed from hiding
+  // the other two.
+  const [feedOk, setFeedOk] = useState({ alerts: true, changes: true, runs: true });
 
-  /** Re-reads the optional feed. Failures are silent by design (see rule 1). */
+  /** Re-reads the optional feed. Failures mark availability, never take down targets. */
   const refreshFeed = useCallback(async () => {
-    try {
-      const [a, c, r] = await Promise.all([
-        fetchAlerts(),
-        fetchChangeEvents(),
-        fetchRuns(),
-      ]);
-      setAlerts(a);
-      setChanges(c);
-      setRuns(r);
-    } catch {
-      // Intentionally empty: the dashboard is fully usable without this feed.
-    }
+    const [a, c, r] = await Promise.allSettled([
+      fetchAlerts(),
+      fetchChangeEvents(),
+      fetchRuns(),
+    ]);
+    if (a.status === "fulfilled") setAlerts(a.value);
+    if (c.status === "fulfilled") setChanges(c.value);
+    if (r.status === "fulfilled") setRuns(r.value);
+    setFeedOk({
+      alerts: a.status === "fulfilled",
+      changes: c.status === "fulfilled",
+      runs: r.status === "fulfilled",
+    });
   }, []);
 
   /** Re-reads targets (the source of truth) and then the optional feed. */
@@ -139,19 +147,20 @@ export function useDashboardData() {
   }, [refreshFeed]);
 
   const untrack = useCallback(
-    (id: string) => {
-      setTargets((current) => current.filter((t) => t.id !== id));
-      void untrackTarget(id)
-        .then(refresh)
-        .catch(async (error: unknown) => {
-          // The optimistic removal was wrong — restore truth FIRST (refresh
-          // clears targetsError on success), THEN explain, or the message
-          // gets wiped by the very call that follows it.
-          await refresh();
-          setTargetsError(
-            error instanceof Error ? error.message : "Unknown error",
-          );
-        });
+    async (id: string) => {
+      try {
+        await untrackTarget(id);
+        await refresh();
+        toast("Removed from tracking", "Attempts and history stay in exports.");
+      } catch (error) {
+        // The item was never removed: refresh() already restored truth, so
+        // the message below cannot be wiped by the call that follows it.
+        await refresh();
+        setTargetsError(
+          error instanceof Error ? error.message : "Unknown error",
+        );
+        throw error;
+      }
     },
     [refresh],
   );
@@ -164,7 +173,9 @@ export function useDashboardData() {
     alerts,
     changes,
     runs,
+    feedOk,
     refresh,
+    refreshFeed,
     untrack,
   };
 }

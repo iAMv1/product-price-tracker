@@ -483,6 +483,43 @@ describe('bonus: multi-option one-run track (by-product)', () => {
       (await request(app).patch(`/api/tracked-products/${created.body.id}`).send({})).status,
     ).toBe(400);
   });
+
+  it('rejects out-of-range intervals instead of silently clamping to 2', async () => {
+    const { app } = setup();
+    const badTrack = await request(app)
+      .post('/api/tracked-products')
+      .send({ storeProductId: '2626', selectedOption: 'o1', scrapeIntervalHours: 999 });
+    expect(badTrack.status).toBe(400);
+    expect(badTrack.body.error).toBe('bad_interval');
+    const created = await request(app)
+      .post('/api/tracked-products')
+      .send({ storeProductId: '2626', selectedOption: 'o1' });
+    expect(created.status).toBe(201);
+    const badPatch = await request(app)
+      .patch(`/api/tracked-products/${created.body.id}`)
+      .send({ scrapeIntervalHours: 0 });
+    expect(badPatch.status).toBe(400);
+    expect(badPatch.body.error).toBe('bad_interval');
+    const badBulk = await request(app)
+      .post('/api/tracked-products/by-product')
+      .send({ storeProductId: '2626', options: ['o2'], scrapeIntervalHours: 200 });
+    expect(badBulk.status).toBe(400);
+    expect(badBulk.body.error).toBe('bad_interval');
+  });
+
+  it('rejects numeric ids beyond the safe integer range', async () => {
+    const { app } = setup();
+    const huge = '9'.repeat(20);
+    expect((await request(app).get(`/api/products/${huge}`)).status).toBe(400);
+    expect((await request(app).get(`/api/products/search?q=${huge}`)).status).toBe(400);
+    expect(
+      (
+        await request(app)
+          .post('/api/tracked-products')
+          .send({ storeProductId: huge, selectedOption: 'o1' })
+      ).status,
+    ).toBe(400);
+  });
 });
 
 describe('bonus: alerts + change detection', () => {
