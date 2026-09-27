@@ -143,6 +143,11 @@ the body carries the dependency state instead.
   manual `Scrape now` legitimately resets that target's window; targets
   scraped more recently than their interval are skipped honestly (`skipped`
   count in the response).
+- Identity is pinned, not assumed: the first observation captures the store's
+  item SKU (e.g. `SK-2626-RE`) onto the tracked row, and every later scrape
+  must match it — a drifted SKU fails as terminal `validation_identity`
+  instead of recording a stranger's price. Option match is exact on top of
+  that, so `o2` can never silently report `o3`'s bundle price.
 - Manual triggers: `Scrape now` per card, `POST /api/tracked-products/:id/scrape`,
   and multi-option `POST /api/tracked-products/by-product`.
 - Untrack is a soft delete: the card leaves the dashboard while attempts and
