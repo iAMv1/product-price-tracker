@@ -1,0 +1,60 @@
+﻿ffmpeg.exe : ffmpeg version N-92722-gf22fcd4483 Copyright (c) 2000-2018 the FFmpeg developers
+At C:\Users\ItzP\AppData\Local\Temp\opencode\record-driver.ps1:133 char:3
++   & $ffmpeg -i $final -f null - 2>&1 | Out-File (Join-Path $out 'meta ...
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (ffmpeg version ...mpeg developers:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  built with gcc 8.2.1 (GCC) 20181201
+  configuration: --enable-gpl --enable-version3 --enable-sdl2 --enable-fontconfig --enable-gnutls --enable-iconv 
+--enable-libass --enable-libbluray --enable-libfreetype --enable-libmp3lame --enable-libopencore-amrnb 
+--enable-libopencore-amrwb --enable-libopenjpeg --enable-libopus --enable-libshine --enable-libsnappy --enable-libsoxr 
+--enable-libtheora --enable-libtwolame --enable-libvpx --enable-libwavpack --enable-libwebp --enable-libx264 
+--enable-libx265 --enable-libxml2 --enable-libzimg --enable-lzma --enable-zlib --enable-gmp --enable-libvidstab 
+--enable-libvorbis --enable-libvo-amrwbenc --enable-libmysofa --enable-libspeex --enable-libxvid --enable-libaom 
+--enable-libmfx --enable-amf --enable-ffnvcodec --enable-cuvid --enable-d3d11va --enable-nvenc --enable-nvdec 
+--enable-dxva2 --enable-avisynth --enable-libopenmpt
+  libavutil      56. 24.101 / 56. 24.101
+  libavcodec     58. 42.102 / 58. 42.102
+  libavformat    58. 24.101 / 58. 24.101
+  libavdevice    58.  6.101 / 58.  6.101
+  libavfilter     7. 46.101 /  7. 46.101
+  libswscale      5.  4.100 /  5.  4.100
+  libswresample   3.  4.100 /  3.  4.100
+  libpostproc    55.  4.100 / 55.  4.100
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from 
+'C:\Users\ItzP\Workspace\active\internship-new\artifacts\recordings\headed-run.mp4':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomiso2avc1mp41
+    encoder         : Lavf58.24.101
+  Duration: 00:03:24.07, start: 0.000000, bitrate: 1062 kb/s
+    Stream #0:0(und): Video: h264 (Constrained Baseline) (avc1 / 0x31637661), yuv420p, 1920x1080, 1061 kb/s, 15 fps, 
+15 tbr, 15360 tbn, 30 tbc (default)
+    Metadata:
+      handler_name    : VideoHandler
+Stream mapping:
+  Stream #0:0 -> #0:0 (h264 (native) -> wrapped_avframe (native))
+Press [q] to stop, [?] for help
+Output #0, null, to 'pipe:':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomiso2avc1mp41
+    encoder         : Lavf58.24.101
+    Stream #0:0(und): Video: wrapped_avframe, yuv420p, 1920x1080, q=2-31, 200 kb/s, 15 fps, 15 tbn, 15 tbc (default)
+    Metadata:
+      handler_name    : VideoHandler
+      encoder         : Lavc58.42.102 wrapped_avframe
+frame=  458 fps=0.0 q=-0.0 size=N/A time=00:00:30.53 bitrate=N/A speed=60.9x    
+frame=  725 fps=721 q=-0.0 size=N/A time=00:00:48.33 bitrate=N/A speed=  48x    
+frame= 1074 fps=713 q=-0.0 size=N/A time=00:01:11.60 bitrate=N/A speed=47.5x    
+frame= 1512 fps=753 q=-0.0 size=N/A time=00:01:40.80 bitrate=N/A speed=50.2x    
+frame= 1794 fps=715 q=-0.0 size=N/A time=00:01:59.60 bitrate=N/A speed=47.6x    
+frame= 2174 fps=722 q=-0.0 size=N/A time=00:02:24.93 bitrate=N/A speed=48.1x    
+frame= 2471 fps=704 q=-0.0 size=N/A time=00:02:44.73 bitrate=N/A speed=46.9x    
+frame= 2757 fps=686 q=-0.0 size=N/A time=00:03:03.80 bitrate=N/A speed=45.7x    
+frame= 3052 fps=674 q=-0.0 size=N/A time=00:03:23.46 bitrate=N/A speed=44.9x    
+frame= 3061 fps=674 q=-0.0 Lsize=N/A time=00:03:24.06 bitrate=N/A speed=44.9x    
+video:1602kB audio:0kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: unknown
