@@ -13,7 +13,11 @@ import { goHash, trackedHref } from "../../router";
 import { formatRupees } from "../../lib/format";
 import { fetchHistory, type TrackedTarget } from "../../services/api";
 
-/** Dashboard row from the wireframes: identity, price, status, trend, actions. */
+/** Dashboard row from the wireframes: identity, price, status, trend, actions.
+ *
+ * Pointer-only shortcut: the whole card previews on click. Keyboard and
+ * screen-reader users get the same action through the name and monogram
+ * buttons, so the card itself stays unfocusable with no extra tab stop. */
 export function TrackedProductRow({
   target,
   onChanged,
@@ -91,7 +95,13 @@ export function TrackedProductRow({
   ];
 
   return (
-    <Card className="p-4 sm:p-5">
+    <Card
+      className="cursor-pointer p-4 transition-colors hover:border-foreground/30 sm:p-5"
+      onClick={(e: React.MouseEvent) => {
+        if ((e.target as HTMLElement).closest("button, a")) return;
+        setQuickOpen(true);
+      }}
+    >
       <ContextMenuArea
         items={menuItems}
         onSelect={(item) => select(item.label)}
