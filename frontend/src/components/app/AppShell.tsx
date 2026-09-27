@@ -1,4 +1,5 @@
 import { ThemeToggle } from "../ui/theme-toggle";
+import { TooltipGroup } from "../ui/tooltip-group";
 import { cn } from "../../lib/cn";
 
 export type AppSection = "dashboard" | "search" | "alerts" | "settings";
@@ -113,7 +114,9 @@ export function AppShell({
         <div className="mt-auto border-t border-border px-5 py-4">
           <div className="flex items-center justify-between gap-2">
             <p className="text-[13px] font-medium text-muted">Appearance</p>
-            <ThemeToggle />
+            <TooltipGroup>
+              <ThemeToggle />
+            </TooltipGroup>
           </div>
           <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-muted">
             <a href="#/docs" className="rounded py-1 hover:text-foreground">Docs</a>
@@ -131,7 +134,9 @@ export function AppShell({
               </span>
               <span className="text-[15px] font-semibold tracking-tight">PriceTracker</span>
             </a>
-            <ThemeToggle />
+            <TooltipGroup>
+              <ThemeToggle />
+            </TooltipGroup>
           </div>
         </header>
 

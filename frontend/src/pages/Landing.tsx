@@ -10,6 +10,7 @@ import {
   type TrackedTarget,
 } from "../services/api";
 import { ThemeToggle } from "../components/ui/theme-toggle";
+import { TooltipGroup } from "../components/ui/tooltip-group";
 import { Countdown } from "../components/ui/countdown";
 import { Odometer } from "../components/ui/odometer";
 import { RelativeTime } from "../components/ui/relative-time";
@@ -348,7 +349,9 @@ export default function Landing() {
             <a href="#/docs" className="hidden rounded-full px-3 py-1.5 text-muted hover:text-foreground sm:block">
               About
             </a>
-            <ThemeToggle />
+            <TooltipGroup>
+              <ThemeToggle />
+            </TooltipGroup>
             <a
               href="#/app"
               className="ml-1 inline-flex min-h-10 items-center rounded-xl bg-primary px-4 font-semibold text-on-primary hover:bg-primary-strong"
