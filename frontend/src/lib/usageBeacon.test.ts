@@ -18,26 +18,20 @@ describe("beaconDeploymentUsage", () => {
   });
 
   it("pings once per session and then stays silent", () => {
-    const send = vi.fn().mockReturnValue(true);
-    Object.defineProperty(window.navigator, "sendBeacon", {
-      value: send,
-      configurable: true,
-    });
+    const ping = vi.fn().mockResolvedValue(new Response("{}", { status: 202 }));
+    vi.stubGlobal("fetch", ping);
     beaconDeploymentUsage();
     beaconDeploymentUsage();
-    expect(send).toHaveBeenCalledTimes(1);
+    expect(ping).toHaveBeenCalledTimes(1);
     expect(window.sessionStorage.getItem(KEY)).toBe("1");
-    expect(send.mock.calls[0]?.[0]).toContain("/api/usage-ping");
+    expect(ping.mock.calls[0]?.[0]).toContain("/api/usage-ping");
   });
 
   it("respects Do Not Track and never throws", () => {
     setDNT("1");
-    const send = vi.fn().mockReturnValue(true);
-    Object.defineProperty(window.navigator, "sendBeacon", {
-      value: send,
-      configurable: true,
-    });
+    const ping = vi.fn().mockResolvedValue(new Response("{}"));
+    vi.stubGlobal("fetch", ping);
     expect(() => beaconDeploymentUsage()).not.toThrow();
-    expect(send).not.toHaveBeenCalled();
+    expect(ping).not.toHaveBeenCalled();
   });
 });

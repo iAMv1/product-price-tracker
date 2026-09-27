@@ -325,18 +325,18 @@ export interface UsageStats {
  * Deployment usage ping. Fire-and-forget by contract: callers must never
  * await it or let it fail the boot — telemetry is the least important
  * request the app makes.
+ *
+ * fetch (not sendBeacon): helmet's same-origin resource policy blocks
+ * beacon responses cross-origin, which spams the console; a CORS fetch
+ * passes on the backend's ACAO headers. keepalive covers unload.
  */
 export function sendUsagePing(path: string): void {
   try {
-    const body = JSON.stringify({ path });
-    if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
-      if (navigator.sendBeacon(`${BASE_URL}/api/usage-ping`, body)) return;
-    }
     void fetch(`${BASE_URL}/api/usage-ping`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       keepalive: true,
-      body,
+      body: JSON.stringify({ path }),
     }).catch(() => {});
   } catch {
     // Telemetry must never break the app.
