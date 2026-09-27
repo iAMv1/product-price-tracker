@@ -22,6 +22,7 @@ import {
   fetchProduct,
   fetchScrapeLog,
   listTracked,
+  trackProduct,
   untrackTarget,
   type AlertItem,
   type AttemptEntry,
@@ -42,6 +43,8 @@ type ViewState =
       alerts: AlertItem[];
       /** Store catalogue detail (brand, specs, reviews) — advisory only. */
       detail: ProductDetail | null;
+      /** Other tracked options of the same store product (for switching). */
+      siblings: TrackedTarget[];
     };
 
 const TABS = [
@@ -86,6 +89,8 @@ export function TrackedProduct({ targetId }: { targetId: string }) {
   const [exportOpen, setExportOpen] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [switching, setSwitching] = useState<string | null>(null);
+  const [switchError, setSwitchError] = useState<string | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -112,6 +117,9 @@ export function TrackedProduct({ targetId }: { targetId: string }) {
         log,
         alerts: allAlerts.filter((alert) => alert.trackedProductId === targetId),
         detail,
+        siblings: targets.filter(
+          (item) => item.storeProductId === target.storeProductId && item.id !== target.id,
+        ),
       });
     } catch (error) {
       setState({
@@ -124,6 +132,11 @@ export function TrackedProduct({ targetId }: { targetId: string }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    setSwitchError(null);
+    setSwitching(null);
+  }, [targetId]);
 
   useEffect(() => {
     const next = parseTab(hash);
@@ -161,6 +174,9 @@ export function TrackedProduct({ targetId }: { targetId: string }) {
         log,
         alerts: allAlerts.filter((alert) => alert.trackedProductId === targetId),
         detail,
+        siblings: targets.filter(
+          (item) => item.storeProductId === target.storeProductId && item.id !== target.id,
+        ),
       });
     } catch {
       // Quiet path never breaks the visible page; next navigation reloads.
@@ -220,9 +236,30 @@ export function TrackedProduct({ targetId }: { targetId: string }) {
     );
   }
 
-  const { target, history, log, alerts, detail } = state;
+  const { target, history, log, alerts, detail, siblings } = state;
   // Human option name first ("Starter bundle"), raw id kept for evidence.
   const optionName = target.optionLabel ?? target.selectedOption;
+  // Switching options: tracked sibling → navigate to its workspace;
+  // untracked option → track it (with immediate first scrape) then open it.
+  async function selectOption(optionId: string) {
+    if (optionId === target.selectedOption || switching !== null) return;
+    const sibling = siblings.find((item) => item.selectedOption === optionId);
+    if (sibling !== undefined) {
+      goHash(trackedHref(sibling.id));
+      return;
+    }
+    setSwitching(optionId);
+    setSwitchError(null);
+    try {
+      const created = await trackProduct(target.storeProductId, optionId);
+      goHash(trackedHref(created.id));
+      toast("Option tracked", "First scrape ran — its history starts now.");
+    } catch (error) {
+      setSwitchError(error instanceof Error ? error.message : "Could not track this option");
+    } finally {
+      setSwitching(null);
+    }
+  }
   const rangedHistory = filterByRange(history, (entry) => entry.observed_at, range);
   const prices = rangedHistory.map((entry) => entry.price);
   // History arrives newest-first: index 0 is the current price, the last
@@ -316,6 +353,53 @@ export function TrackedProduct({ targetId }: { targetId: string }) {
                 Store page
               </a>
             </p>
+            {detail !== null && detail.options.length > 1 && (
+              <div className="mt-3">
+                <p className="text-[13px] font-semibold tracking-wide text-muted uppercase">
+                  {detail.optionAxis ?? "Options"}
+                </p>
+                <div role="group" aria-label="Product options" className="mt-1.5 flex flex-wrap gap-2">
+                  {detail.options.map((option) => {
+                    const isCurrent = option.id === target.selectedOption;
+                    const tracked = isCurrent
+                      || siblings.some((item) => item.selectedOption === option.id);
+                    const busy = switching === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        disabled={isCurrent || switching !== null}
+                        onClick={() => void selectOption(option.id)}
+                        title={
+                          isCurrent
+                            ? `Currently viewing ${option.label}`
+                            : tracked
+                              ? `Open tracked ${option.label}`
+                              : `Track ${option.label} (runs a first scrape)`
+                        }
+                        className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+                          isCurrent
+                            ? "border-foreground bg-foreground text-background"
+                            : "border-foreground/20 bg-background text-foreground hover:border-foreground/50"
+                        } disabled:cursor-default ${busy ? "opacity-60" : ""}`}
+                      >
+                        {option.label}
+                        {!isCurrent && (
+                          <span className="ml-1.5 text-[12px] font-normal opacity-70">
+                            {busy ? "tracking…" : tracked ? "· tracked" : `· ${option.id}`}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                {switchError !== null && (
+                  <p role="alert" className="mt-2 text-sm text-danger">
+                    {switchError}
+                  </p>
+                )}
+              </div>
+            )}
             {alerts.length > 0 && (
               <ul className="mt-3 grid gap-2">
                 {alerts.slice(0, 3).map((alert, index) => (
