@@ -27,6 +27,7 @@ export function DropdownMenu({
   label,
   items,
   align = "start",
+  chevron = true,
   onSelect,
   className,
 }: {
@@ -34,6 +35,8 @@ export function DropdownMenu({
   label: React.ReactNode;
   items: DropdownItem[];
   align?: "start" | "end";
+  /** Hide the caret for icon-only triggers such as "⋯". */
+  chevron?: boolean;
   onSelect?: (label: string) => void;
   className?: string;
 }) {
@@ -211,6 +214,7 @@ export function DropdownMenu({
         className="flex h-10 touch-manipulation items-center gap-1.5 rounded-full border border-border px-3.5 text-[13px] font-medium text-foreground outline-hidden transition-[scale,background-color] duration-150 ease-out select-none hover:bg-foreground/10 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-foreground active:scale-[0.96] motion-reduce:transition-none"
       >
         {label}
+        {chevron && (
         <svg
           viewBox="0 0 16 16"
           aria-hidden
@@ -226,6 +230,7 @@ export function DropdownMenu({
         >
           <path d="m4.5 6.5 3.5 3.5 3.5-3.5" />
         </svg>
+        )}
       </button>
 
       <AnimatePresence>

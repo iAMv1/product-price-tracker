@@ -53,6 +53,13 @@ function shortLabel(iso: string): string {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(date);
 }
 
+/** Wireframe-style UTC stamp: `2026-09-27 04:50 UTC`. */
+function utcStamp(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+}
+
 function alertLabel(alert: AlertItem): string {
   if (alert.type === "price_drop") {
     return alert.toPrice == null
@@ -180,10 +187,12 @@ export function TrackedProduct({ targetId }: { targetId: string }) {
   const { target, history, log, alerts } = state;
   const rangedHistory = filterByRange(history, (entry) => entry.observed_at, range);
   const prices = rangedHistory.map((entry) => entry.price);
+  // History arrives newest-first: index 0 is the current price, the last
+  // index the oldest loaded observation.
   const highest = prices.length > 0 ? Math.max(...prices) : null;
   const lowest = prices.length > 0 ? Math.min(...prices) : null;
-  const current = prices.length > 0 ? prices[prices.length - 1] ?? null : null;
-  const first = prices.length > 0 ? prices[0] ?? null : null;
+  const current = prices.length > 0 ? (prices[0] ?? null) : null;
+  const first = prices.length > 0 ? (prices[prices.length - 1] ?? null) : null;
   const change = current !== null && first !== null && first !== 0 ? current - first : null;
   const changePct = change !== null && first ? (change / first) * 100 : null;
   const points = rangedHistory
@@ -196,7 +205,7 @@ export function TrackedProduct({ targetId }: { targetId: string }) {
       active="dashboard"
       crumbs={[{ label: "Dashboard", href: "#/app" }, { label: target.productName }]}
       title={`${target.productName} (${target.selectedOption})`}
-      description={`Last scraped ${target.lastScrape ? new Date(target.lastScrape.attemptedAt).toLocaleString() : "never"}`}
+      description={`Last scraped ${target.lastScrape ? utcStamp(target.lastScrape.attemptedAt) : "never"}`}
       actions={
         <>
           <SecondaryButton onClick={() => setExportOpen(true)}>Export CSV</SecondaryButton>
@@ -344,8 +353,8 @@ export function TrackedProduct({ targetId }: { targetId: string }) {
                   <tbody>
                     {rangedHistory.map((entry) => (
                       <tr key={entry.observed_at} className="border-t border-border">
-                        <td className="py-2 pr-3 text-muted">
-                          {new Date(entry.observed_at).toLocaleString()}
+                        <td className="py-2 pr-3 whitespace-nowrap text-muted tabular-nums">
+                          {utcStamp(entry.observed_at)}
                         </td>
                         <td className="py-2 pr-3 font-semibold tabular-nums">
                           {formatRupees(entry.price)}

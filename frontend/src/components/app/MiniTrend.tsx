@@ -21,7 +21,7 @@ export function MiniTrend({ values }: { values: number[] }) {
   });
   const line = `M${points.join(" L")}`;
   const area = `${line} L${width},${height} L0,${height} Z`;
-  const falling = values[values.length - 1]! < values[0]!;
+  const lastY = 4 + (1 - (values[values.length - 1]! - min) / span) * (height - 8);
 
   return (
     <svg
@@ -40,17 +40,12 @@ export function MiniTrend({ values }: { values: number[] }) {
       <path
         d={line}
         fill="none"
-        stroke={falling ? "var(--success)" : "var(--primary)"}
+        stroke="var(--primary)"
         strokeWidth={2}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <circle
-        cx={width}
-        cy={4 + (1 - (values[values.length - 1]! - min) / span) * (height - 8)}
-        r={2.5}
-        fill={falling ? "var(--success)" : "var(--primary)"}
-      />
+      <circle cx={width} cy={lastY} r={2.5} fill="var(--primary)" />
     </svg>
   );
 }

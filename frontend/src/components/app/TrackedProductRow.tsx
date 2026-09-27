@@ -106,8 +106,14 @@ export function TrackedProductRow({
             <p className="w-[120px] text-[13px] text-muted">Not enough checks for a trend.</p>
           )}
           <DropdownMenu
-            label="⋯"
+            label={
+              <>
+                <span aria-hidden>⋯</span>
+                <span className="sr-only">Actions for {target.productName}</span>
+              </>
+            }
             align="end"
+            chevron={false}
             items={[
               { label: "View details" },
               { label: "Run manual scrape" },

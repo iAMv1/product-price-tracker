@@ -25,13 +25,17 @@ export function ScrapeLogTable({ log }: { log: AttemptEntry[] }) {
             const message = success
               ? "—"
               : [entry.error_code, entry.error_message].filter(Boolean).join(" — ") || "—";
+            const attempted = new Date(entry.attempted_at);
+            const stamp = Number.isNaN(attempted.getTime())
+              ? entry.attempted_at
+              : `${attempted.toISOString().slice(0, 16).replace("T", " ")} UTC`;
             return (
               <tr
                 key={`${entry.attempted_at}-${entry.attempt_number}`}
                 className="border-t border-border align-top first:border-t-0"
               >
                 <td className="px-4 py-3 whitespace-nowrap text-muted tabular-nums">
-                  {new Date(entry.attempted_at).toISOString()}
+                  {stamp}
                 </td>
                 <td className="px-4 py-3 font-medium text-foreground tabular-nums">
                   {success
