@@ -112,6 +112,12 @@ export function Modal({
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) onClose();
           }}
+          // Clicks that begin on the backdrop must die here: ancestors (row
+          // cards) also listen for clicks, and a bubbled backdrop click
+          // would re-trigger whatever opened this dialog.
+          onClick={(event) => {
+            if (event.target === event.currentTarget) event.stopPropagation();
+          }}
         >
           <motion.div
             {...rise}
@@ -121,7 +127,7 @@ export function Modal({
             aria-labelledby={labelledBy}
             tabIndex={-1}
             className={cn(
-              "w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-raised outline-hidden",
+              "max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-raised outline-hidden",
               className,
             )}
           >

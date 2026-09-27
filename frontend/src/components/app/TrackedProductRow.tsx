@@ -98,7 +98,12 @@ export function TrackedProductRow({
     <Card
       className="cursor-pointer p-4 transition-colors hover:border-foreground/30 sm:p-5"
       onClick={(e: React.MouseEvent) => {
-        if ((e.target as HTMLElement).closest("button, a")) return;
+        const el = e.target as HTMLElement;
+        // Dialogs render inline inside the card: a backdrop click must only
+        // dismiss the dialog, never re-trigger preview underneath it. Menu
+        // items are divs, not buttons, so they need their own carve-out.
+        if (el.closest('[role="dialog"], [role="menuitem"]')) return;
+        if (el.closest("button, a")) return;
         setQuickOpen(true);
       }}
     >
