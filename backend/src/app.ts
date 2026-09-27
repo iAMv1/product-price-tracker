@@ -11,6 +11,7 @@ import { exportRouter } from './routes/export.js';
 import { healthRouter } from './routes/health.js';
 import { internalRouter } from './routes/internal.js';
 import { productsRouter } from './routes/products.js';
+import { usageRouter } from './routes/usage.js';
 import { runsRouter } from './routes/runs.js';
 import { trackedRouter } from './routes/tracked.js';
 
@@ -126,6 +127,7 @@ export function createApp(deps: AppDeps = {}) {
   app.use('/api', alertsRouter);
   app.use('/api', runsRouter);
   app.use('/api', exportRouter);
+  app.use('/api', usageRouter);
 
   app.use(notFound);
   app.use(handleError);

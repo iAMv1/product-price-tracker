@@ -7,7 +7,9 @@ import { trackedHref } from "../router";
 import {
   listTracked,
   updateInterval,
+  fetchUsageStats,
   type TrackedTarget,
+  type UsageStats,
 } from "../services/api";
 
 const INTERVALS = [1, 2, 6, 12, 24, 168];
@@ -16,6 +18,8 @@ const INTERVALS = [1, 2, 6, 12, 24, 168];
 export default function Settings() {
   const [targets, setTargets] = useState<TrackedTarget[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [usage, setUsage] = useState<UsageStats | null>(null);
+  const [usageError, setUsageError] = useState(false);
 
   async function load() {
     try {
@@ -28,6 +32,10 @@ export default function Settings() {
 
   useEffect(() => {
     void load();
+    // Usage telemetry is advisory: it must never block settings.
+    fetchUsageStats()
+      .then(setUsage)
+      .catch(() => setUsageError(true));
   }, []);
 
   return (
@@ -100,6 +108,48 @@ export default function Settings() {
           The API computes alerts from validated checks but does not store notification
           preferences. These switches stay off until backend support exists.
         </p>
+      </Card>
+      <Card className="mt-6">
+        <Eyebrow>Deployment usage</Eyebrow>
+        <p className="mt-2 text-[13px] leading-relaxed text-muted">
+          One anonymous ping per visit (origin host only — no IPs, no user agents).
+          A foreign host here means someone else points a frontend at YOUR backend.
+          A clone running its own backend never appears here.
+        </p>
+        {usageError ? (
+          <p className="mt-3 text-sm text-muted">
+            Usage telemetry is unavailable — this backend predates migration 003.
+          </p>
+        ) : usage === null ? (
+          <p role="status" className="mt-3 text-sm text-muted">
+            Loading usage…
+          </p>
+        ) : (
+          <div className="mt-3">
+            <p className="text-sm text-muted tabular-nums">
+              {usage.total} visits · {usage.last24h} in the last 24h
+              {usage.firstSeen ? ` · first seen ${new Date(usage.firstSeen).toLocaleDateString()}` : ""}
+            </p>
+            {usage.byOrigin.length > 0 && (
+              <ul className="mt-3 grid gap-2">
+                {usage.byOrigin.map((row) => (
+                  <li
+                    key={row.host}
+                    className="flex flex-wrap items-baseline gap-x-3 rounded-xl border border-border px-4 py-2.5 text-sm"
+                  >
+                    <span className="font-semibold">{row.host}</span>
+                    <span className="text-muted tabular-nums">
+                      {row.count} visit{row.count === 1 ? "" : "s"}
+                    </span>
+                    <span className="ml-auto text-[13px] text-muted">
+                      last {new Date(row.lastSeen).toLocaleString()}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </Card>
     </AppShell>
   );

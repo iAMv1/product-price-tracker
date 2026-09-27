@@ -10,6 +10,7 @@ import { AlertBadge, OutcomeBadge, StockBadge } from "../components/app/status";
 import { Tabs } from "../components/app/Tabs";
 import { TrackingSettingsForm } from "../components/app/TrackingSettingsForm";
 import { RelativeTime } from "../components/ui/relative-time";
+import { Odometer } from "../components/ui/odometer";
 import { Sparkline } from "../components/ui/sparkline";
 import { toast } from "../components/ui/toast-stack";
 import { formatRupees, nextScrapeIn } from "../lib/format";
@@ -218,9 +219,21 @@ export function TrackedProduct({ targetId }: { targetId: string }) {
           <ProductMark name={target.productName} size="lg" />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
-              <p className="text-3xl font-semibold tracking-tight tabular-nums sm:text-4xl">
-                {target.latest ? formatRupees(target.latest.price) : "No validated price"}
-              </p>
+              {target.latest ? (
+                <span className="flex items-baseline gap-1.5">
+                  <span aria-hidden className="text-xl text-muted">
+                    ₹
+                  </span>
+                  <Odometer
+                    value={target.latest.price}
+                    className="text-3xl leading-none font-semibold tracking-tight text-foreground tabular-nums sm:text-4xl"
+                  />
+                </span>
+              ) : (
+                <p className="text-3xl font-semibold tracking-tight text-muted sm:text-4xl">
+                  No validated price
+                </p>
+              )}
               {change !== null && changePct !== null && (
                 <span
                   className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[13px] font-semibold tabular-nums ${

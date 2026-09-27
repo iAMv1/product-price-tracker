@@ -1,10 +1,13 @@
 import { useId } from "react";
+import { motion } from "motion/react";
+import { useReducedMotion } from "../../hooks/useReducedMotion";
 
 /**
  * Compact dashboard trend. Static by design: the tracked detail page owns the
  * scrubbable chart, so rows show shape without duplicating interaction.
  */
 export function MiniTrend({ values }: { values: number[] }) {
+  const reduce = useReducedMotion();
   const gradientId = useId();
   if (values.length < 2) return null;
 
@@ -37,13 +40,18 @@ export function MiniTrend({ values }: { values: number[] }) {
         </linearGradient>
       </defs>
       <path d={area} fill={`url(#${gradientId})`} />
-      <path
+      {/* Draw-once, same language as the main chart: stroke direction carries
+          time direction (past → present). Static under reduced motion. */}
+      <motion.path
         d={line}
         fill="none"
         stroke="var(--primary)"
         strokeWidth={2}
         strokeLinecap="round"
         strokeLinejoin="round"
+        initial={reduce ? false : { pathLength: 0 }}
+        animate={{ pathLength: 1 }}
+        transition={{ duration: 0.6, ease: [0.23, 1, 0.32, 1] }}
       />
       <circle cx={width} cy={lastY} r={2.5} fill="var(--primary)" />
     </svg>

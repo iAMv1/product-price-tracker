@@ -52,6 +52,19 @@ export interface ExportRow {
   attempt_number: number;
 }
 
+export interface UsagePing {
+  originHost: string;
+  path: string;
+  referrerHost: string;
+}
+
+export interface UsageStats {
+  total: number;
+  last24h: number;
+  firstSeen: string | null;
+  byOrigin: Array<{ host: string; count: number; lastSeen: string }>;
+}
+
 /**
  * NUMERIC arrives as string from node-postgres and number from pg-mem.
  * Prices are integer minor units (well under 2^53), so normalize to number
@@ -577,4 +590,65 @@ export async function listRuns(db: Queryable, limit: number): Promise<ScrapeRunS
     retriedCount: row.retried_count,
     failureCount: row.failure_count,
   }));
+}
+
+/**
+ * Deployment usage telemetry. One row per app boot (the frontend beacons
+ * once per session): origin host + path only — no IPs, no user agents, so
+ * there is nothing person-identifying to leak or retain.
+ */
+export async function recordUsagePing(db: Queryable, ping: UsagePing): Promise<void> {
+  const clean = (value: string, max: number): string =>
+    value.length > max ? value.slice(0, max) : value;
+  await db.query(
+    `INSERT INTO usage_pings (origin_host, path, referrer_host)
+     VALUES ($1, $2, $3)`,
+    [
+      clean(ping.originHost, 253),
+      clean(ping.path, 512),
+      clean(ping.referrerHost, 253),
+    ],
+  );
+}
+
+/** Aggregated usage only: counts + hosts, never individual rows. */
+export async function getUsageStats(db: Queryable): Promise<UsageStats> {
+  const toCount = (value: unknown): number => Number(value ?? 0);
+  const toIso = (value: unknown): string => {
+    const date = value instanceof Date ? value : new Date(String(value));
+    return Number.isNaN(date.getTime()) ? String(value) : date.toISOString();
+  };
+  const totalRow = one<{ total: string | number }>(
+    await db.query(`SELECT COUNT(*) AS total FROM usage_pings`),
+  );
+  const dayRow = one<{ last24h: string | number }>(
+    await db.query(
+      `SELECT COUNT(*) AS last24h FROM usage_pings
+       WHERE occurred_at > now() - interval '24 hours'`,
+    ),
+  );
+  const firstRow = one<{ first_seen: unknown }>(
+    await db.query(`SELECT MIN(occurred_at) AS first_seen FROM usage_pings`),
+  );
+  const origins = rows<{ host: string; count: string | number; last_seen: unknown }>(
+    await db.query(
+      // CASE, not NULLIF: the in-memory test engine does not implement NULLIF,
+      // while production Postgres accepts both forms identically.
+      `SELECT CASE WHEN origin_host = '' THEN '(direct)' ELSE origin_host END AS host,
+              COUNT(*) AS count, MAX(occurred_at) AS last_seen
+       FROM usage_pings
+       GROUP BY CASE WHEN origin_host = '' THEN '(direct)' ELSE origin_host END
+       ORDER BY COUNT(*) DESC LIMIT 50`,
+    ),
+  );
+  return {
+    total: toCount(totalRow.total),
+    last24h: toCount(dayRow.last24h),
+    firstSeen: firstRow.first_seen == null ? null : toIso(firstRow.first_seen),
+    byOrigin: origins.map((row) => ({
+      host: row.host,
+      count: toCount(row.count),
+      lastSeen: toIso(row.last_seen),
+    })),
+  };
 }

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AppShell } from "../components/app/AppShell";
+import { CountUp } from "../components/app/CountUp";
 import { ExportDialog } from "../components/app/ExportDialog";
 import { Card, Eyebrow } from "../components/app/primitives";
 import { PrimaryButton, SecondaryButton } from "../components/app/controls";
@@ -94,7 +95,7 @@ export default function Dashboard() {
               <Card key={stat.label} className="p-4">
                 <Eyebrow>{stat.label}</Eyebrow>
                 <p className="mt-2 text-[28px] leading-none font-semibold tabular-nums">
-                  {stat.value}
+                  <CountUp value={stat.value} />
                 </p>
                 <p className="mt-2 text-[13px] text-muted">{stat.note}</p>
               </Card>

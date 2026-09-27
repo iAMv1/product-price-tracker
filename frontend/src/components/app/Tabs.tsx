@@ -1,4 +1,5 @@
-import { useRef } from "react";
+import { useId, useRef } from "react";
+import { motion } from "motion/react";
 import { cn } from "../../lib/cn";
 
 export interface TabOption {
@@ -24,6 +25,9 @@ export function Tabs({
   className?: string;
 }) {
   const buttons = useRef(new Map<string, HTMLButtonElement>());
+  // One underline element shared across tabs: it slides instead of fading so
+  // the selection keeps its spatial position (reason: preserve tab mapping).
+  const underlineId = useId();
 
   function move(current: string, step: number) {
     const index = tabs.findIndex((tab) => tab.id === current);
@@ -84,13 +88,14 @@ export function Tabs({
             )}
           >
             {tab.label}
-            <span
-              aria-hidden
-              className={cn(
-                "absolute inset-x-3 -bottom-px h-0.5 rounded-full",
-                selected ? "bg-primary" : "bg-transparent",
-              )}
-            />
+            {selected && (
+              <motion.span
+                layoutId={underlineId}
+                aria-hidden
+                transition={{ type: "spring", visualDuration: 0.22, bounce: 0 }}
+                className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-primary"
+              />
+            )}
           </button>
         );
       })}

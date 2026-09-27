@@ -1,5 +1,6 @@
 import { ThemeToggle } from "../ui/theme-toggle";
 import { TooltipGroup } from "../ui/tooltip-group";
+import { motion } from "motion/react";
 import { cn } from "../../lib/cn";
 
 export type AppSection = "dashboard" | "search" | "alerts" | "settings";
@@ -99,14 +100,26 @@ export function AppShell({
                 href={link.href}
                 aria-current={selected ? "page" : undefined}
                 className={cn(
-                  "flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold outline-hidden transition-colors focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-primary",
+                  "relative flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold outline-hidden transition-colors focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-primary",
                   selected
-                    ? "bg-foreground/10 text-foreground"
+                    ? "text-foreground"
                     : "text-muted hover:bg-surface hover:text-foreground",
                 )}
               >
-                {link.icon("size-5 shrink-0")}
-                {link.label}
+                {/* One pill shared across links: slides instead of blinking so
+                    navigation keeps its spatial position. */}
+                {selected && (
+                  <motion.span
+                    layoutId="app-nav-active"
+                    aria-hidden
+                    transition={{ type: "spring", visualDuration: 0.25, bounce: 0 }}
+                    className="absolute inset-0 rounded-xl bg-foreground/10"
+                  />
+                )}
+                <span className="relative flex items-center gap-3">
+                  {link.icon("size-5 shrink-0")}
+                  {link.label}
+                </span>
               </a>
             );
           })}
@@ -121,6 +134,14 @@ export function AppShell({
           <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-muted">
             <a href="#/docs" className="rounded py-1 hover:text-foreground">Docs</a>
             <a href="#/changelog" className="rounded py-1 hover:text-foreground">Changelog</a>
+            <a
+              href="https://github.com/iAMv1/product-price-tracker"
+              target="_blank"
+              rel="noreferrer"
+              className="rounded py-1 hover:text-foreground"
+            >
+              Built by iAMv1
+            </a>
           </p>
         </div>
       </aside>

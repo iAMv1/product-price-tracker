@@ -313,3 +313,36 @@ export async function fetchRuns(): Promise<RunEntry[]> {
 export function exportCsvUrl(): string {
   return `${BASE_URL}/api/export.csv`;
 }
+
+export interface UsageStats {
+  total: number;
+  last24h: number;
+  firstSeen: string | null;
+  byOrigin: Array<{ host: string; count: number; lastSeen: string }>;
+}
+
+/**
+ * Deployment usage ping. Fire-and-forget by contract: callers must never
+ * await it or let it fail the boot — telemetry is the least important
+ * request the app makes.
+ */
+export function sendUsagePing(path: string): void {
+  try {
+    const body = JSON.stringify({ path });
+    if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+      if (navigator.sendBeacon(`${BASE_URL}/api/usage-ping`, body)) return;
+    }
+    void fetch(`${BASE_URL}/api/usage-ping`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      keepalive: true,
+      body,
+    }).catch(() => {});
+  } catch {
+    // Telemetry must never break the app.
+  }
+}
+
+export function fetchUsageStats(): Promise<UsageStats> {
+  return getJson<UsageStats>("/api/usage-stats");
+}

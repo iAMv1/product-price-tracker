@@ -459,7 +459,7 @@ export default function Landing() {
 
       <footer className="border-t border-border bg-card">
         <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-6 text-[13px] text-muted sm:px-6">
-          <p>React · Express · Supabase · cron-job.org</p>
+          <p>React · Express · Supabase · cron-job.org · Built by iAMv1</p>
           <p className="flex gap-4">
             <a href="#/docs" className="rounded-full py-1.5 hover:text-foreground">Docs</a>
             <a href="#/changelog" className="rounded-full py-1.5 hover:text-foreground">Changelog</a>
