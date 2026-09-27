@@ -21,10 +21,15 @@ HEADLESS=1 npx tsx tools/headed-scrape.ts 2626 o1   # CI/headless
 
 ## What the grader sees
 
-1. A headed Chromium window opens the real store page
+1. One causal chain, by construction: real store → local backend (fault-armed
+   runner, in-process) → shared local Postgres → local frontend → headed
+   Chromium. The script spawns the backend (port 4100) and the frontend dev
+   server (port 5173, proxied) itself; every scrape is triggered through the
+   LOCAL HTTP API, so the run IDs the terminal prints are the same rows the
+   browser's scrape log renders.
+2. A headed Chromium window opens the real store page
    (`https://demo.inelabteamdev.com/item/<id>`) with visible navigation.
-2. The terminal runs the REAL production scraper through the REAL runner
-   (`runAllTargets` from `src/scraper/runner.ts`), printing per-call lines
+3. The terminal runs scrapes through the LOCAL API, printing per-target lines
    and then the persisted attempt chain:
    - `attempt 1 -> success  price=… stock=…` on the happy path;
    - in ONE chain: `attempt 1 -> retried (http_5xx)` (injected demo 503,
@@ -32,10 +37,10 @@ HEADLESS=1 npx tsx tools/headed-scrape.ts 2626 o1   # CI/headless
      runner's own backoff + jitter (`1000/2000/4000ms` cap) between them;
    - `attempt 1 -> failed (option_not_found)` for `2626/o99`: terminal code,
      one honest `failed` row, price and stock left empty.
-3. The browser window stays open while retries happen, so slow responses
+4. The browser window stays open while retries happen, so slow responses
    are watchable in both places at once.
-4. The final terminal segment prints a summary of every attempt row the
-   runner persisted for this run.
+5. The final terminal segment prints a summary of every attempt row persisted
+   for this run — the same IDs the browser showed.
 
 ## Demo fault injection (`tools/fault-inject.ts`)
 
@@ -57,11 +62,13 @@ override with e.g. `DEMO_FAULT=timeout-once npm run record:headed`.
 
 ## Safety guards
 
-- **Database:** recording aborts before any write if `DATABASE_URL` is set
-  and its host is not `localhost`/`127.0.0.1` — the recording must only ever
-  touch the local dev database, never production. With no `DATABASE_URL`
-  the runner persists into an in-memory schema database (rows still land in
-  `scrape_attempts`; the printed summary comes from `getAttemptLog`).
+- **Database:** recording aborts before any server, browser, or DB write
+  unless `DATABASE_URL` points at `localhost`/`127.0.0.1` Postgres — the
+  recording must only ever touch the local dev database, never production.
+  There is deliberately NO in-memory fallback: coherence requires one shared
+  DB the backend and the browser both read, so a missing/non-local
+  `DATABASE_URL` is a hard abort, not a degraded mode. Local Postgres must
+  already carry the schema (`db/schema.sql` + `db/migrations/`).
 - **State files:** `tools/recording-run.ts` creates
   `../artifacts/recordings/` (`mkdirSync … recursive`) before writing
   `.flip` (window-swap request: `terminal`/`browser`) and `.done` (ISO
