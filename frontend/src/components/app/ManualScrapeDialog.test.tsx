@@ -95,4 +95,48 @@ describe("ManualScrapeDialog", () => {  it("fires exactly one scrape across pare
       expect(screen.getByText(/Scrape finished/)).toBeInTheDocument(),
     );
   });
+
+  it("shows the stored observation while the run still finishes", async () => {
+    const gate = new Promise<Response>(() => {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: unknown) => {
+        if (String(url).includes("/scrape-log")) {
+          return new Response(
+            JSON.stringify({
+              results: [
+                {
+                  attempt_number: 1,
+                  attempted_at: new Date().toISOString(),
+                  outcome: "success",
+                  price: 29990,
+                  stock: "3",
+                  http_status: 200,
+                  error_code: null,
+                  error_message: null,
+                },
+              ],
+            }),
+            { status: 200 },
+          );
+        }
+        return gate;
+      }),
+    );
+    render(
+      <ManualScrapeDialog
+        open
+        targetId="t1"
+        productName="P"
+        onClose={() => {}}
+        onFinished={() => {}}
+      />,
+    );
+    // The value is stored but HTTP has not resolved: the dialog says what
+    // is already true instead of still claiming to wait for it.
+    await waitFor(() =>
+      expect(screen.getByText(/Observation stored/)).toBeInTheDocument(),
+    );
+    expect(screen.getByText(/Finishing run/)).toBeInTheDocument();
+  });
 });

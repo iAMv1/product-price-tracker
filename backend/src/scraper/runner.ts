@@ -59,9 +59,13 @@ export async function runTarget(
   target: TargetInput,
   scrape: ScrapeFn,
   sleep: Sleep = realSleep,
+  onTiming?: (timing: TargetTiming) => void,
 ): Promise<TargetOutcome> {
+  const timed = (finalOutcome: string, attempts: number, scrapeMs: number, commitMs: number) =>
+    onTiming?.({ targetId: target.id, finalOutcome, attempts, scrapeMs, commitMs });
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     let result: ScrapeResult;
+    const scrapeStart = Date.now();
     try {
       result = await scrape({
         productId: target.storeProductId,
@@ -78,10 +82,13 @@ export async function runTarget(
         errorCode: 'internal_error',
         errorMessage: `scraper threw instead of returning a failure: ${message}`,
       });
+      timed('failed', attempt, Date.now() - scrapeStart, 0);
       return { targetId: target.id, finalOutcome: 'failed', attempts: attempt };
     }
+    const scrapeMs = Date.now() - scrapeStart;
 
     if (result.ok) {
+      const commitStart = Date.now();
       await recordSuccessfulAttempt(db, {
         runId,
         trackedProductId: target.id,
@@ -91,6 +98,7 @@ export async function runTarget(
         stock: result.stock,
         durationMs: result.durationMs,
       });
+      timed('success', attempt, scrapeMs, Date.now() - commitStart);
       return { targetId: target.id, finalOutcome: 'success', attempts: attempt };
     }
 
@@ -117,6 +125,7 @@ export async function runTarget(
       errorMessage: result.errorMessage,
       durationMs: result.durationMs,
     });
+    timed('failed', attempt, scrapeMs, 0);
     return { targetId: target.id, finalOutcome: 'failed', attempts: attempt };
   }
   // Unreachable by construction: the loop always returns on its last
@@ -139,6 +148,22 @@ export interface RunHooks {
    * row (and renew the scheduler lease) so a live batch never looks dead.
    */
   onTargetDone?: () => Promise<void>;
+  /**
+   * Boundary timings per target (scrape vs commit). The manual route logs
+   * one line per scrape so a slow dialog can be attributed to scraper, DB,
+   * or HTTP — the scheduler path passes nothing and stays silent.
+   */
+  onTiming?: (timing: TargetTiming) => void;
+}
+
+export interface TargetTiming {
+  targetId: string;
+  finalOutcome: string;
+  attempts: number;
+  /** Scraper wall time for the final attempt. */
+  scrapeMs: number;
+  /** DB commit time for the final observation (0 when nothing was stored). */
+  commitMs: number;
 }
 
 /**
@@ -165,7 +190,7 @@ export async function executeScrapeRun(
   // storefront's rate limiter. Do not "optimize" this into Promise.all
   // without re-checking rate limits and the single-flight lease budget.
   for (const target of input.targets) {
-    const outcome = await runTarget(db, runId, target, input.scrape, sleep);
+    const outcome = await runTarget(db, runId, target, input.scrape, sleep, input.hooks?.onTiming);
     totalAttempts += outcome.attempts;
     if (outcome.finalOutcome === 'success') succeeded += 1;
     else failed += 1;

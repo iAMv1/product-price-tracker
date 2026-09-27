@@ -160,6 +160,32 @@ describe('runTarget (SCRAPE-002)', () => {
     expect(await getLatestValidated(db, target.id)).not.toBeNull();
   });
 
+  it('reports scrape-vs-commit boundary timings without changing behavior', async () => {
+    const db = setup();
+    const target = await seedTarget(db);
+    const runId = await seedRun(db);
+    const { scrape } = scripted([success]);
+    const seen: unknown[] = [];
+    const outcome = await runTarget(
+      db,
+      runId,
+      target,
+      scrape,
+      sleepRecorder().sleep,
+      (timing) => seen.push(timing),
+    );
+    expect(outcome).toMatchObject({ finalOutcome: 'success', attempts: 1 });
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({
+      targetId: target.id,
+      finalOutcome: 'success',
+      attempts: 1,
+    });
+    const timing = seen[0] as { scrapeMs: number; commitMs: number };
+    expect(timing.scrapeMs).toBeGreaterThanOrEqual(0);
+    expect(timing.commitMs).toBeGreaterThanOrEqual(0);
+  });
+
   it('retries transient failures then records the recovery chain', async () => {
     const db = setup();
     const target = await seedTarget(db);

@@ -4,12 +4,14 @@ import { formatRupees } from "../../lib/format";
 import { Modal } from "./Modal";
 import { PrimaryButton, SecondaryButton } from "./controls";
 
-type Phase = "running" | "success" | "error";
+type Phase = "running" | "observed" | "success" | "error";
 
 /**
  * Manual-scrape progress without invented subtasks. The backend exposes one
- * synchronous operation, so the dialog reports request, wait, and result—not
- * fake fetch/parse/validate/save stages.
+ * synchronous operation, so the dialog reports request, wait, and result —
+ * plus one honest intermediate state: when a fresh success observation lands
+ * in the log before the HTTP round-trip finishes, the dialog says what is
+ * already stored instead of still claiming to wait for it.
  */
 export function ManualScrapeDialog({
   open,
@@ -34,41 +36,92 @@ export function ManualScrapeDialog({
   // moment the dialog opened. Older rows belong to previous runs and must
   // never masquerade as current progress.
   const [progress, setProgress] = useState<string | null>(null);
+  // A fresh success observation seen before HTTP resolves: the value is
+  // stored, only run completion is still in flight. Mirrored in a ref so
+  // the request callback below never reads a stale render's value.
+  const [observed, setObserved] = useState<{ price: number; stock: string } | null>(null);
+  const observedRef = useRef<{ price: number; stock: string } | null>(null);
+  function noteObserved(value: { price: number; stock: string }) {
+    observedRef.current = value;
+    setObserved(value);
+  }
   // Latest callback without re-subscribing: parents (rows especially) pass
   // fresh inline closures every render, and re-running a scrape per render
   // would bill the store once per paint.
   const onFinishedRef = useRef(onFinished);
   onFinishedRef.current = onFinished;
-  // Exactly-once guard per (target, attempt, opening): StrictMode mounts the
-  // effect twice in dev, and aborting only cancels waiting — the POST is
-  // already on the wire. The key resets when the dialog closes.
-  const firedRef = useRef<string | null>(null);
+  // The in-flight request survives effect re-runs (notably StrictMode's
+  // mount-cleanup-remount in dev): cleanup only ever clears UI timers, never
+  // aborts, so a remount adopts the pending promise instead of firing a
+  // second POST — while a real close aborts explicitly below.
+  const flightRef = useRef<{
+    key: string;
+    promise: Promise<{ succeeded: number; failed: number }>;
+    controller: AbortController;
+  } | null>(null);
+  // Progress baseline rides with the flight, not the effect run: a remount
+  // must not move the goalposts and miss an observation mid-flight.
+  const startedAtRef = useRef<string>("");
 
   useEffect(() => {
     if (!open) {
-      firedRef.current = null;
+      // Genuine close (not a remount): stop waiting for good.
+      flightRef.current?.controller.abort();
+      flightRef.current = null;
       return;
     }
     const key = `${targetId}:${attempt}`;
-    if (firedRef.current === key) return;
-    firedRef.current = key;
-    let cancelled = false;
-    const controller = new AbortController();
-    // Progress baseline: only attempts recorded after this instant belong
-    // to the run this dialog triggered.
-    const startedAt = new Date().toISOString();
+    // UI timers restart on every mount: cheap, idempotent, remount-safe.
+    // State resets are invisible on remount (same values) and correct on retry.
     setPhase("running");
     setSummary(null);
     setError(null);
     setElapsed(0);
+    observedRef.current = null;
+    setObserved(null);
     setProgress("Contacting the tracker…");
+    // Progress baseline: only attempts recorded after this instant belong
+    // to the run this dialog triggered.
     const timer = window.setInterval(() => setElapsed((value) => value + 1), 1000);
+
+    const onResolve = (result: { succeeded: number; failed: number }) => {
+      // First handler wins: mount + remount both attach, so dedupe here.
+      if (flightRef.current?.key !== key) return;
+      flightRef.current = null;
+      setSummary(result);
+      setPhase("success");
+      onFinishedRef.current();
+    };
+    const onReject = (runError: unknown) => {
+      if (flightRef.current?.key !== key) return;
+      flightRef.current = null;
+      if ((runError as { name?: string } | null)?.name === "AbortError") return;
+      // Edge case, stated plainly: the value landed but the run did not
+      // complete cleanly, so neither "success" nor plain "failure" is true.
+      setError(
+        observedRef.current !== null
+          ? `Price was observed and stored, but the run did not complete cleanly: ${runError instanceof Error ? runError.message : "Manual scrape failed"}`
+          : runError instanceof Error ? runError.message : "Manual scrape failed",
+      );
+      setPhase("error");
+    };
+
+    const existing = flightRef.current;
+    if (existing && existing.key === key) {
+      // Remount with the request still in flight: adopt it, fire nothing.
+      existing.promise.then(onResolve, onReject);
+    } else {
+      startedAtRef.current = new Date().toISOString();
+      const controller = new AbortController();
+      const promise = rescrapeTarget(targetId, controller.signal);
+      flightRef.current = { key, promise, controller };
+      promise.then(onResolve, onReject);
+    }
 
     async function pollAttempts() {
       try {
         const log = await fetchScrapeLog(targetId, 5);
-        if (cancelled) return;
-        const fresh = log.filter((entry) => entry.attempted_at >= startedAt);
+        const fresh = log.filter((entry) => entry.attempted_at >= startedAtRef.current);
         if (fresh.length === 0) {
           setProgress("Contacting the tracker…");
           return;
@@ -81,32 +134,22 @@ export function ManualScrapeDialog({
               : formatRupees(latest.price)
             : (latest.error_code ?? "no detail yet");
         setProgress(`Attempt ${latest.attempt_number} recorded — ${latest.outcome} (${detail}).`);
+        // Success stored before HTTP resolves: say so now, finish when the
+        // run completes. Watching, not assuming — the completion summary
+        // still comes from the HTTP response.
+        if (latest.outcome === "success" && latest.price != null) {
+          if (observedRef.current === null) {
+            noteObserved({ price: latest.price, stock: latest.stock ?? "unknown" });
+          }
+          setPhase((current) => (current === "running" ? "observed" : current));
+        }
       } catch {
         // Polling is advisory only; the main request owns real errors.
       }
     }
     const poller = window.setInterval(() => void pollAttempts(), 3000);
     void pollAttempts();
-
-    async function run() {
-      try {
-        const result = await rescrapeTarget(targetId, controller.signal);
-        if (cancelled) return;
-        setSummary(result);
-        setPhase("success");
-        onFinishedRef.current();
-      } catch (runError) {
-        if (cancelled || (runError as { name?: string } | null)?.name === "AbortError") return;
-        setError(runError instanceof Error ? runError.message : "Manual scrape failed");
-        setPhase("error");
-      } finally {
-        window.clearInterval(timer);
-      }
-    }
-    void run();
     return () => {
-      cancelled = true;
-      controller.abort();
       window.clearInterval(timer);
       window.clearInterval(poller);
     };
@@ -133,6 +176,19 @@ export function ManualScrapeDialog({
               {progress}
             </p>
           )}
+        </div>
+      )}
+
+      {phase === "observed" && observed && (
+        <div role="status" className="mt-5">
+          <ul className="grid gap-2 rounded-2xl border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
+            <li><span aria-hidden>✓ </span>Price observed — {formatRupees(observed.price)}</li>
+            <li><span aria-hidden>✓ </span>Stock observed — {observed.stock}</li>
+            <li><span aria-hidden>✓ </span>Observation stored</li>
+          </ul>
+          <p className="mt-3 text-sm text-muted">
+            Finishing run{elapsed >= 2 ? ` (${elapsed} s elapsed)` : ""}…
+          </p>
         </div>
       )}
 

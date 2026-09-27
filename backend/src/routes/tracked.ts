@@ -327,10 +327,22 @@ trackedRouter.post('/:id/scrape', async (req: Request, res: Response) => {
     res.status(404).json({ error: 'not_found', message: 'tracked product not found' });
     return;
   }
+  const routeStart = Date.now();
   const summary = await runAllTargets(db, {
     triggerType: 'manual',
     targets: [rowToTarget(row)],
     scrape,
+    hooks: {
+      // One timing line per manual scrape: attributes a slow dialog to
+      // scraper, DB commit, or HTTP overhead instead of guessing.
+      onTiming: (timing) =>
+        console.info(
+          `[ppt][timing] manual target=${timing.targetId} ` +
+            `outcome=${timing.finalOutcome} attempts=${timing.attempts} ` +
+            `scrape=${timing.scrapeMs}ms commit=${timing.commitMs}ms ` +
+            `http=${Date.now() - routeStart}ms`,
+        ),
+    },
   });
   res.json(summary);
 });
