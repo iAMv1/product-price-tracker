@@ -6,6 +6,46 @@ import { PrimaryButton, SecondaryButton, inputClassName } from "../components/ap
 import { useStoreSearch } from "../hooks/useStoreSearch";
 import { goHash, parseSearchQuery, productHref, searchHref, useRoute } from "../router";
 
+/** Disabled filter controls, shared by the desktop sidebar and the mobile
+    collapsible. One component so the two can never drift apart. */
+function FilterControls() {
+  return (
+    <div className="grid gap-4">
+      <label className="block text-sm font-medium text-foreground">
+        Category
+        <select disabled value="all" className={`${inputClassName} mt-2`}>
+          <option value="all">All categories</option>
+        </select>
+      </label>
+      <div>
+        <p className="text-sm font-medium text-foreground">Price range</p>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <input disabled placeholder="Min" aria-label="Minimum price" className={inputClassName} />
+          <input disabled placeholder="Max" aria-label="Maximum price" className={inputClassName} />
+        </div>
+      </div>
+      <fieldset disabled>
+        <legend className="text-sm font-medium text-foreground">Availability</legend>
+        <div className="mt-2 grid gap-2 text-sm text-muted">
+          <label className="flex items-center gap-2">
+            <input type="radio" name="availability" defaultChecked className="size-4" /> All
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="radio" name="availability" className="size-4" /> In stock
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="radio" name="availability" className="size-4" /> Out of stock
+          </label>
+        </div>
+      </fieldset>
+      <p className="text-[13px] leading-relaxed text-muted">
+        Category, price, and availability filters are unavailable because the store search
+        API accepts text queries only.
+      </p>
+    </div>
+  );
+}
+
 /** Standalone store search. Filters stay visible but disabled: the store API supports text search only. */
 export default function Search() {
   const [, , , , hash] = useRoute();
@@ -80,6 +120,9 @@ export default function Search() {
     active >= 0 && hits !== null && active < hits.length
       ? `${listId}-opt-${active}`
       : undefined;
+  // Mobile: filters collapse to a one-line toggle so results own the first
+  // screen. Desktop: the panel docks on the RIGHT of the results.
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   return (
     <AppShell
@@ -88,45 +131,18 @@ export default function Search() {
       title="Search Products"
       description="Find products from the INE mock store by partial or full name."
     >
-      <div className="grid gap-6 md:grid-cols-[248px_minmax(0,1fr)]">
-        <aside aria-label="Search filters" className="h-fit rounded-2xl border border-border bg-card p-5">
+      <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_248px]">
+        <aside
+          aria-label="Search filters"
+          className="hidden h-fit rounded-2xl border border-border bg-card p-5 md:order-2 md:block"
+        >
           <Eyebrow>Filters</Eyebrow>
-          <div className="mt-4 grid gap-4">
-            <label className="block text-sm font-medium text-foreground">
-              Category
-              <select disabled value="all" className={`${inputClassName} mt-2`}>
-                <option value="all">All categories</option>
-              </select>
-            </label>
-            <div>
-              <p className="text-sm font-medium text-foreground">Price range</p>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <input disabled placeholder="Min" aria-label="Minimum price" className={inputClassName} />
-                <input disabled placeholder="Max" aria-label="Maximum price" className={inputClassName} />
-              </div>
-            </div>
-            <fieldset disabled>
-              <legend className="text-sm font-medium text-foreground">Availability</legend>
-              <div className="mt-2 grid gap-2 text-sm text-muted">
-                <label className="flex items-center gap-2">
-                  <input type="radio" name="availability" defaultChecked className="size-4" /> All
-                </label>
-                <label className="flex items-center gap-2">
-                  <input type="radio" name="availability" className="size-4" /> In stock
-                </label>
-                <label className="flex items-center gap-2">
-                  <input type="radio" name="availability" className="size-4" /> Out of stock
-                </label>
-              </div>
-            </fieldset>
-            <p className="text-[13px] leading-relaxed text-muted">
-              Category, price, and availability filters are unavailable because the store search
-              API accepts text queries only.
-            </p>
+          <div className="mt-4">
+            <FilterControls />
           </div>
         </aside>
 
-        <section aria-label="Store results">
+        <section aria-label="Store results" className="md:order-1">
           <form role="search" onSubmit={submit} className="flex flex-col gap-2 sm:flex-row">
             <label className="sr-only" htmlFor="store-search">
               Search products
@@ -156,6 +172,25 @@ export default function Search() {
               )}
             </div>
           </form>
+
+          <div className="mt-4 rounded-2xl border border-border bg-card p-4 md:hidden">
+            <button
+              type="button"
+              aria-expanded={filtersOpen}
+              onClick={() => setFiltersOpen((v) => !v)}
+              className="flex min-h-11 w-full items-center justify-between gap-2 rounded-xl px-1 text-left outline-hidden focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              <Eyebrow>Filters</Eyebrow>
+              <span aria-hidden className="text-lg leading-none text-muted">
+                {filtersOpen ? "−" : "+"}
+              </span>
+            </button>
+            {filtersOpen && (
+              <div className="mt-4">
+                <FilterControls />
+              </div>
+            )}
+          </div>
 
           {search.query.trim().length === 1 && (
             <p className="mt-2 text-[13px] text-muted">Enter at least 2 characters.</p>
