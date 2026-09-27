@@ -27,7 +27,7 @@ function describeDatabase(health: HealthResponse): string {
 }
 
 export default function Dashboard() {
-  const { boot, retryBoot, targets, targetsError, alerts, runs, feedOk, refresh, refreshFeed, untrack } =
+  const { boot, retryBoot, targets, targetsLoading, targetsError, alerts, runs, feedOk, refresh, refreshFeed, untrack } =
     useDashboardData();
   const [exportOpen, setExportOpen] = useState(false);
   const work = useWorkIndicator({
@@ -95,7 +95,7 @@ export default function Dashboard() {
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Tracking summary">
-        {boot.kind === "loading"
+        {boot.kind === "loading" || targetsLoading
           ? [0, 1, 2, 3].map((skeleton) => (
               <Card key={skeleton} className="p-4">
                 <div className="h-4 w-24 rounded bg-foreground/10 motion-safe:animate-pulse" />
@@ -153,9 +153,10 @@ export default function Dashboard() {
             </SecondaryButton>
           </div>
         )}
-        {boot.kind === "loading" ? (
-          <div className="grid gap-4">
+        {boot.kind === "loading" || targetsLoading ? (
+          <div className="grid gap-4" role="status" aria-busy="true">
             <TargetCardSkeleton count={2} />
+            <span className="sr-only">Loading tracked products…</span>
           </div>
         ) : targets.length === 0 && targetsError === null ? (
           <Card className="text-center">

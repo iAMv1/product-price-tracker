@@ -3,6 +3,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { useRoute, type Route } from "./router";
 import Landing from "./pages/Landing";
 import { Toaster } from "./components/ui/toast-stack";
+import { PageLoader } from "./components/app/PageLoader";
 
 // Route-level splitting: only the landing shell ships up front; dashboard,
 // product, docs and changelog load on navigation (fixes the >500 kB warning).
@@ -15,14 +16,7 @@ const Changelog = lazy(() => import("./pages/Changelog"));
 const Product = lazy(() => import("./pages/Product"));
 
 function RouteLoading() {
-  return (
-    <div
-      className="mx-auto w-full max-w-6xl px-4 py-24 text-center"
-      role="status"
-    >
-      <p className="text-sm text-muted">Loading…</p>
-    </div>
-  );
+  return <PageLoader label="Loading page" />;
 }
 
 const TITLES: Record<Route, string> = {

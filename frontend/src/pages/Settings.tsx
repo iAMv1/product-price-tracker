@@ -3,6 +3,7 @@ import { AppShell } from "../components/app/AppShell";
 import { Card, Eyebrow } from "../components/app/primitives";
 import { PrimaryButton, SecondaryButton } from "../components/app/controls";
 import { toast } from "../components/ui/toast-stack";
+import { Bone } from "../components/ui/skeleton-loader";
 import { trackedHref } from "../router";
 import {
   listTracked,
@@ -53,9 +54,11 @@ export default function Settings() {
       <Card>
         <Eyebrow>Tracking schedules</Eyebrow>
         {targets === null ? (
-          <p role="status" className="mt-3 text-sm text-muted">
-            Loading schedules…
-          </p>
+          <div role="status" aria-busy="true" className="mt-3 grid gap-2">
+            <Bone className="h-12 rounded-xl" />
+            <Bone className="h-12 rounded-xl" />
+            <span className="sr-only">Loading schedules…</span>
+          </div>
         ) : targets.length === 0 ? (
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-muted">No tracked products yet.</p>
@@ -121,9 +124,10 @@ export default function Settings() {
             Usage telemetry is unavailable — this backend predates migration 003.
           </p>
         ) : usage === null ? (
-          <p role="status" className="mt-3 text-sm text-muted">
-            Loading usage…
-          </p>
+          <div role="status" aria-busy="true" className="mt-3">
+            <Bone className="h-4 w-48 rounded" />
+            <span className="sr-only">Loading usage…</span>
+          </div>
         ) : (
           <div className="mt-3">
             <p className="text-sm text-muted tabular-nums">

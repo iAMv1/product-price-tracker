@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AppShell } from "../components/app/AppShell";
 import { Card, Eyebrow } from "../components/app/primitives";
+import { Bone } from "../components/ui/skeleton-loader";
 import { SecondaryButton } from "../components/app/controls";
 import { AlertBadge } from "../components/app/status";
 import { RelativeTime } from "../components/ui/relative-time";
@@ -76,9 +77,11 @@ export default function Alerts() {
         </p>
       )}
       {alerts === null || changes === null ? (
-        <p role="status" className="text-sm text-muted">
-          Loading alerts…
-        </p>
+        <div role="status" aria-busy="true" className="grid gap-6">
+          <Bone className="h-28 rounded-2xl" />
+          <Bone className="h-28 rounded-2xl" />
+          <span className="sr-only">Loading alerts…</span>
+        </div>
       ) : (
         <div className="grid gap-6">
           {groups.map((group) => (

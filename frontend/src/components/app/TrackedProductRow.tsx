@@ -7,6 +7,7 @@ import { QuickViewModal } from "./QuickViewModal";
 import { Card, ProductMark } from "./primitives";
 import { OutcomeBadge, StockBadge } from "./status";
 import { DropdownMenu } from "../ui/dropdown-menu";
+import { Bone } from "../ui/skeleton-loader";
 import { ContextMenuArea, type MenuItem } from "../ui/context-menu";
 import { RelativeTime } from "../ui/relative-time";
 import { goHash, trackedHref } from "../../router";
@@ -173,9 +174,10 @@ export function TrackedProductRow({
             {target.lastScrape && <OutcomeBadge outcome={target.lastScrape.outcome} />}
           </div>
           {values === null ? (
-            <p className="text-[13px] text-muted" role="status">
-              Loading trend…
-            </p>
+            <div role="status" aria-busy="true">
+              <Bone className="h-9 w-[120px] rounded" />
+              <span className="sr-only">Loading trend…</span>
+            </div>
           ) : values.length > 1 ? (
             <MiniTrend values={values} />
           ) : (

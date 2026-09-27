@@ -39,6 +39,9 @@ export function useDashboardData() {
   const [boot, setBoot] = useState<BootState>({ kind: "loading" });
   const [targets, setTargets] = useState<TrackedTarget[]>([]);
   const [targetsError, setTargetsError] = useState<string | null>(null);
+  // Targets load AFTER boot: without this flag a fast health check plus a
+  // slow target list flashes "No tracked products yet" with zeroes first.
+  const [targetsLoading, setTargetsLoading] = useState(true);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [changes, setChanges] = useState<ChangeEvent[]>([]);
   const [runs, setRuns] = useState<RunEntry[]>([]);
@@ -73,6 +76,8 @@ export function useDashboardData() {
       setTargetsError(
         error instanceof Error ? error.message : "Unknown error",
       );
+    } finally {
+      setTargetsLoading(false);
     }
     await refreshFeed();
   }, [refreshFeed]);
@@ -105,6 +110,8 @@ export function useDashboardData() {
         setTargetsError(
           error instanceof Error ? error.message : "Unknown error",
         );
+      } finally {
+        if (!cancelled) setTargetsLoading(false);
       }
       await refreshFeed();
     }
@@ -142,6 +149,8 @@ export function useDashboardData() {
       setTargetsError(
         error instanceof Error ? error.message : "Unknown error",
       );
+    } finally {
+      setTargetsLoading(false);
     }
     await refreshFeed();
   }, [refreshFeed]);
@@ -169,6 +178,7 @@ export function useDashboardData() {
     boot,
     retryBoot,
     targets,
+    targetsLoading,
     targetsError,
     alerts,
     changes,
