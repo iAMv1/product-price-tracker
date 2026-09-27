@@ -158,8 +158,8 @@ export function StoreProduct({ storeId }: { storeId: string }) {
                       onClick={() => setOption(item.id)}
                       className={`flex min-h-11 items-center justify-between gap-3 rounded-xl border px-4 text-sm font-medium outline-hidden transition-colors focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-primary ${
                         selected
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border text-foreground hover:border-primary/50"
+                          ? "border-foreground bg-foreground text-background"
+                          : "border-border text-foreground hover:border-foreground/40"
                       }`}
                     >
                       <span>{item.label}</span>
@@ -229,14 +229,14 @@ export function StoreProduct({ storeId }: { storeId: string }) {
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <a
               href="#/app"
-              className="inline-flex min-h-11 items-center rounded-xl bg-primary px-5 text-sm font-semibold text-on-primary hover:bg-primary-strong"
+              className="inline-flex min-h-11 items-center rounded-xl bg-foreground px-5 text-sm font-semibold text-background hover:opacity-90"
             >
               View on Dashboard
             </a>
             <button
               type="button"
               onClick={() => setConfirmation(null)}
-              className="inline-flex min-h-11 items-center rounded-xl border border-border bg-card px-5 text-sm font-semibold hover:border-primary/50 hover:text-primary"
+              className="inline-flex min-h-11 items-center rounded-xl border border-border bg-card px-5 text-sm font-semibold hover:border-foreground/40"
             >
               Track Another Product
             </button>

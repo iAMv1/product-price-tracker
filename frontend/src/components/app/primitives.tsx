@@ -21,7 +21,7 @@ export function ProductMark({
     <span
       aria-hidden
       className={cn(
-        "grid shrink-0 place-items-center rounded-xl border border-primary/20 bg-primary/10 font-semibold text-primary",
+        "grid shrink-0 place-items-center rounded-xl border border-border bg-surface font-semibold text-foreground/70",
         sizes[size],
         className,
       )}

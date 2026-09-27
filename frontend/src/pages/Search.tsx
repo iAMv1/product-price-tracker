@@ -149,7 +149,7 @@ export default function Search() {
                 <li key={hit.storeProductId}>
                   <a
                     href={productHref(hit.storeProductId)}
-                    className="flex items-center gap-4 rounded-2xl border border-border bg-card px-4 py-3.5 outline-hidden transition-colors hover:border-primary/50 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-primary"
+                    className="flex items-center gap-4 rounded-2xl border border-border bg-card px-4 py-3.5 outline-hidden transition-colors hover:border-foreground/40 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-primary"
                   >
                     <ProductMark name={hit.name} />
                     <span className="min-w-0 flex-1">

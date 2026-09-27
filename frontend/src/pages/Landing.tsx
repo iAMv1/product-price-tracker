@@ -55,8 +55,8 @@ function ProofTicker({ targets }: { targets: TrackedTarget[] }) {
       className="relative z-0 flex overflow-hidden border-y border-border bg-card"
       aria-label="Live prices"
     >
-      <div className="relative z-10 flex shrink-0 items-center gap-2 border-r border-border bg-card px-4 text-[12px] font-semibold tracking-[0.18em] text-primary uppercase sm:px-5">
-        <span aria-hidden className="size-1.5 rounded-full bg-primary motion-safe:animate-pulse" />
+      <div className="relative z-10 flex shrink-0 items-center gap-2 border-r border-border bg-card px-4 text-[12px] font-semibold tracking-[0.18em] text-foreground uppercase sm:px-5">
+        <span aria-hidden className="size-1.5 rounded-full bg-foreground motion-safe:animate-pulse" />
         Live
       </div>
       <div className="ticker-track flex w-max items-center gap-10 px-5 py-3">
@@ -73,7 +73,7 @@ function ProofTicker({ targets }: { targets: TrackedTarget[] }) {
             ) : (
               <span className="text-muted">awaiting first scrape</span>
             )}
-            <span aria-hidden className="text-primary">●</span>
+            <span aria-hidden className="text-muted">●</span>
           </span>
         ))}
       </div>
@@ -337,7 +337,7 @@ export default function Landing() {
       <header className="sticky top-0 z-20 border-b border-border bg-card/95 backdrop-blur">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
           <a href="#/" className="flex items-center gap-2.5 outline-hidden focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-primary" aria-current="page">
-            <span aria-hidden className="grid size-9 place-items-center rounded-xl bg-primary text-sm font-bold text-on-primary">
+            <span aria-hidden className="grid size-9 place-items-center rounded-xl bg-foreground text-sm font-bold text-background">
               PT
             </span>
             <span className="text-[17px] font-semibold tracking-tight">PriceTracker</span>
@@ -354,7 +354,7 @@ export default function Landing() {
             </TooltipGroup>
             <a
               href="#/app"
-              className="ml-1 inline-flex min-h-10 items-center rounded-xl bg-primary px-4 font-semibold text-on-primary hover:bg-primary-strong"
+              className="ml-1 inline-flex min-h-10 items-center rounded-xl bg-foreground px-4 font-semibold text-background hover:opacity-90"
             >
               Get Started
             </a>
@@ -385,7 +385,7 @@ export default function Landing() {
             <button
               type="submit"
               aria-label="Search products"
-              className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-primary text-lg font-bold text-on-primary hover:bg-primary-strong"
+              className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-foreground text-lg font-bold text-background hover:opacity-90"
             >
               <span aria-hidden>→</span>
             </button>
@@ -404,7 +404,7 @@ export default function Landing() {
             {FEATURES.map((feature, index) => (
               <Reveal key={feature.n} delay={index * 0.06}>
                 <div className="h-full rounded-2xl border border-border bg-card p-6 text-left shadow-raised">
-                  <span aria-hidden className="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary">
+                  <span aria-hidden className="grid size-10 place-items-center rounded-xl bg-surface text-foreground">
                     {index === 0 ? (
                       <svg viewBox="0 0 20 20" className="size-5" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" aria-hidden>
                         <circle cx="10" cy="10" r="2.6" />
@@ -431,7 +431,7 @@ export default function Landing() {
 
         <section className="mx-auto w-full max-w-6xl px-4 pb-16 sm:px-6 sm:pb-24">
           <Reveal>
-            <div className="rounded-2xl bg-primary px-6 py-12 text-center text-on-primary sm:px-12">
+            <div className="rounded-2xl bg-foreground px-6 py-12 text-center text-background sm:px-12">
               <h2 className="mx-auto max-w-xl text-2xl font-semibold tracking-tight text-balance sm:text-4xl">
                 Start with one product. Keep every check.
               </h2>
@@ -441,13 +441,13 @@ export default function Landing() {
               <div className="mt-6 flex flex-wrap justify-center gap-3">
                 <a
                   href="#/search"
-                  className="inline-flex min-h-11 items-center rounded-xl bg-white px-6 text-sm font-semibold text-[#1d4ed8] hover:opacity-90"
+                  className="inline-flex min-h-11 items-center rounded-xl bg-background px-6 text-sm font-semibold text-foreground hover:opacity-90"
                 >
                   Search Products
                 </a>
                 <a
                   href="#/app"
-                  className="inline-flex min-h-11 items-center rounded-xl border border-white/50 px-6 text-sm font-semibold hover:bg-white/10"
+                  className="inline-flex min-h-11 items-center rounded-xl border border-background/30 px-6 text-sm font-semibold hover:bg-background/10"
                 >
                   Open Dashboard
                 </a>

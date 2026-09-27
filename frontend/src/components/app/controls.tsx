@@ -9,7 +9,7 @@ export function PrimaryButton({
       type="button"
       {...props}
       className={cn(
-        "inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-on-primary transition-colors outline-hidden hover:bg-primary-strong focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-50",
+        "inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-xl bg-foreground px-5 text-sm font-semibold text-background transition-opacity outline-hidden hover:opacity-90 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
     />
@@ -25,7 +25,7 @@ export function SecondaryButton({
       type="button"
       {...props}
       className={cn(
-        "inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-xl border border-border bg-card px-5 text-sm font-semibold text-foreground transition-colors outline-hidden hover:border-primary/50 hover:text-primary focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-50",
+        "inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-xl border border-border bg-card px-5 text-sm font-semibold text-foreground transition-colors outline-hidden hover:border-foreground/30 hover:text-foreground focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
     />
@@ -67,4 +67,4 @@ export function Field({
 }
 
 export const inputClassName =
-  "h-11 w-full rounded-xl border border-border bg-card px-4 text-[15px] text-foreground tabular-nums outline-hidden transition-colors placeholder:text-muted/80 hover:border-primary/40 focus:border-primary focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-1 focus-visible:outline-primary disabled:cursor-not-allowed disabled:bg-surface disabled:opacity-70";
+  "h-11 w-full rounded-xl border border-border bg-card px-4 text-[15px] text-foreground tabular-nums outline-hidden transition-colors placeholder:text-muted/80 hover:border-foreground/30 focus:border-primary focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-1 focus-visible:outline-primary disabled:cursor-not-allowed disabled:bg-surface disabled:opacity-70";

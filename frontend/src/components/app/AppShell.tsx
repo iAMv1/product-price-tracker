@@ -85,7 +85,7 @@ export function AppShell({
     <div className="min-h-screen bg-app text-foreground lg:grid lg:grid-cols-[248px_minmax(0,1fr)]">
       <aside className="hidden border-r border-border bg-card lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
         <a href="#/" className="flex items-center gap-2.5 px-5 pt-6 pb-5 outline-hidden focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-primary">
-          <span aria-hidden className="grid size-9 place-items-center rounded-xl bg-primary text-sm font-bold text-on-primary">
+          <span aria-hidden className="grid size-9 place-items-center rounded-xl bg-foreground text-sm font-bold text-background">
             PT
           </span>
           <span className="text-[17px] font-semibold tracking-tight">PriceTracker</span>
@@ -101,7 +101,7 @@ export function AppShell({
                 className={cn(
                   "flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold outline-hidden transition-colors focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-primary",
                   selected
-                    ? "bg-primary/10 text-primary"
+                    ? "bg-foreground/10 text-foreground"
                     : "text-muted hover:bg-surface hover:text-foreground",
                 )}
               >
@@ -129,7 +129,7 @@ export function AppShell({
         <header className="sticky top-0 z-20 border-b border-border bg-card/95 backdrop-blur lg:hidden">
           <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
             <a href="#/app" className="flex items-center gap-2 outline-hidden focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-primary">
-              <span aria-hidden className="grid size-8 place-items-center rounded-lg bg-primary text-[13px] font-bold text-on-primary">
+              <span aria-hidden className="grid size-8 place-items-center rounded-lg bg-foreground text-[13px] font-bold text-background">
                 PT
               </span>
               <span className="text-[15px] font-semibold tracking-tight">PriceTracker</span>
@@ -191,7 +191,7 @@ export function AppShell({
                   aria-current={selected ? "page" : undefined}
                   className={cn(
                     "flex min-h-[60px] flex-col items-center justify-center gap-1 text-[12px] font-semibold",
-                    selected ? "text-primary" : "text-muted",
+                    selected ? "text-foreground" : "text-muted",
                   )}
                 >
                   {link.icon("size-5")}

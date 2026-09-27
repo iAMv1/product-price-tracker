@@ -21,8 +21,8 @@
   --background: light-dark(#ffffff, #0a0a0a);
   --foreground: light-dark(#171717, #ededed);
   --surface: light-dark(#f5f5f5, #161616);
-  --app: light-dark(#eef3fb, #060b18);
-  --card: light-dark(#ffffff, #0c1428);
+  --app: light-dark(#f4f4f5, #09090b);
+  --card: light-dark(#ffffff, #101013);
   --primary: light-dark(#1d4ed8, #60a5fa);
   --primary-strong: light-dark(#1e40af, #3b82f6);
   --on-primary: light-dark(#ffffff, #081226);
