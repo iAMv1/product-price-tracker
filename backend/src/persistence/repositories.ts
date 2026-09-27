@@ -494,14 +494,19 @@ export async function getAttemptLog(
   db: Queryable,
   trackedProductId: string,
   limit: number,
+  runId?: string,
 ): Promise<AttemptLogRow[]> {
-  const result = await db.query(
-    `SELECT attempt_number, attempted_at, outcome, price, stock,
+  const params: unknown[] = [trackedProductId];
+  let sql = `SELECT attempt_number, attempted_at, outcome, price, stock,
             http_status, error_code, error_message
-     FROM scrape_attempts WHERE tracked_product_id = $1
-     ORDER BY attempted_at DESC, attempt_number DESC LIMIT $2`,
-    [trackedProductId, limit],
-  );
+     FROM scrape_attempts WHERE tracked_product_id = $1`;
+  if (runId !== undefined) {
+    sql += ` AND scrape_run_id = $2`;
+    params.push(runId);
+  }
+  sql += ` ORDER BY attempted_at DESC, attempt_number DESC LIMIT $${params.length + 1}`;
+  params.push(limit);
+  const result = await db.query(sql, params);
   return rows<{
     attempt_number: number;
     attempted_at: string;

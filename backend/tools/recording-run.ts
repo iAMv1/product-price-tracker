@@ -189,9 +189,11 @@ for (const [storeProductId, selectedOption] of pairs) {
   );
 }
 
-/** Print the persisted attempt chain for one target (oldest first). */
-async function printChain(label: string, trackedProductId: string): Promise<void> {
-  const chain = [...(await getAttemptLog(db, trackedProductId, 10))].reverse();
+/** Print the persisted attempt chain for one target in ONE run (oldest first).
+ * Run-scoped on purpose: the tail of an old run must never masquerade as
+ * this demonstration's evidence. */
+async function printChain(label: string, trackedProductId: string, runId: string): Promise<void> {
+  const chain = [...(await getAttemptLog(db, trackedProductId, 10, runId))].reverse();
   if (chain.length === 0) {
     say(`  ${label}: (no attempt rows)`);
     return;
@@ -237,6 +239,7 @@ interface ScrapeSummary {
   retriedAttempts: number;
   totalAttempts: number;
 }
+const demoRunIds = new Map<string, string>();
 for (const [index, targetId] of trackedIds.entries()) {
   const [storeProductId, selectedOption] = pairs[index] as [string, string];
   // Explicit per-target arming: deterministic on a fresh DB (where seeding
@@ -253,16 +256,28 @@ for (const [index, targetId] of trackedIds.entries()) {
   } else {
     say(`no fault for ${storeProductId}/${selectedOption}: clean happy path`);
   }
-  const summary = await api<ScrapeSummary>(
+  let summary = await api<ScrapeSummary>(
     `/api/tracked-products/${targetId}/scrape`,
     { method: 'POST' },
   );
+  // The fault MUST show on camera: if the run came back clean, the arming
+  // missed its window (never silently), so re-arm and run once more — both
+  // runs are real, both stay in the log, the second carries the fault.
+  if (fault !== null && summary.retriedAttempts === 0) {
+    say(`  fault missed its window on run ${summary.runId} — re-arming, second run follows`);
+    rearmDemoFault(faultArmedScrape, fault);
+    summary = await api<ScrapeSummary>(
+      `/api/tracked-products/${targetId}/scrape`,
+      { method: 'POST' },
+    );
+  }
+  demoRunIds.set(targetId, summary.runId);
   say(
     `run ${summary.runId}: ${storeProductId}/${selectedOption} ` +
       `succeeded=${summary.succeeded} failed=${summary.failed} ` +
       `retried=${summary.retriedAttempts} attempts=${summary.totalAttempts}`,
   );
-  await printChain(`${storeProductId}/${selectedOption}`, targetId);
+  await printChain(`${storeProductId}/${selectedOption}`, targetId, summary.runId);
 }
 await sleep(4000);
 
@@ -313,7 +328,7 @@ const badSummary = await api<ScrapeSummary>(`/api/tracked-products/${badId}/scra
   method: 'POST',
 });
 say(`run ${badSummary.runId}: succeeded=${badSummary.succeeded} failed=${badSummary.failed}`);
-await printChain('2626/o99', badId);
+await printChain('2626/o99', badId, badSummary.runId);
 say('  nothing invented, nothing hidden: option_not_found is terminal -> one failed row, price and stock left empty');
 await sleep(4000);
 
@@ -373,9 +388,10 @@ say('');
 say('persisted attempt rows (this run, same IDs as the browser showed):');
 for (const [index, targetId] of trackedIds.entries()) {
   const [storeProductId, selectedOption] = pairs[index] as [string, string];
-  await printChain(`${storeProductId}/${selectedOption}`, targetId);
+  const runId = demoRunIds.get(targetId);
+  if (runId !== undefined) await printChain(`${storeProductId}/${selectedOption}`, targetId, runId);
 }
-await printChain('2626/o99', badId);
+await printChain('2626/o99', badId, badSummary.runId);
 await sleep(10000);
 
 // Guarantee the cut stays inside the required 2-4 minute window.
