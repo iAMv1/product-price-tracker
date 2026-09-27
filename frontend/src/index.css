@@ -173,6 +173,17 @@ body {
   }
 }
 
+/* App canvas texture: a faint dot grid that gives monitoring surfaces a
+   physical feel without competing with data. Static by design (motion would
+   fight the charts); color-mix re-tints it for dark mode automatically. */
+.app-texture {
+  background-image: radial-gradient(
+    color-mix(in oklab, var(--foreground) 8%, transparent) 1px,
+    transparent 1.4px
+  );
+  background-size: 22px 22px;
+}
+
 /* Voice: reserved for headings and human sentences. Never for a number. */
 .font-voice {
   font-family: Georgia, "Times New Roman", Times, serif;

@@ -333,7 +333,7 @@ export default function Landing() {
   }
 
   return (
-    <div id="main" tabIndex={-1} className="min-h-screen bg-app text-foreground outline-hidden">
+    <div id="main" tabIndex={-1} className="app-texture min-h-screen bg-app text-foreground outline-hidden">
       <header className="sticky top-0 z-20 border-b border-border bg-card/95 backdrop-blur">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
           <a href="#/" className="flex items-center gap-2.5 outline-hidden focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-primary" aria-current="page">

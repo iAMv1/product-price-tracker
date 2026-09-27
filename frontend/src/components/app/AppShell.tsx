@@ -83,7 +83,7 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-app text-foreground lg:grid lg:grid-cols-[248px_minmax(0,1fr)]">
+    <div className="app-texture min-h-screen bg-app text-foreground lg:grid lg:grid-cols-[248px_minmax(0,1fr)]">
       <aside className="hidden border-r border-border bg-card lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
         <a href="#/" className="flex items-center gap-2.5 px-5 pt-6 pb-5 outline-hidden focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-primary">
           <span aria-hidden className="grid size-9 place-items-center rounded-xl bg-foreground text-sm font-bold text-background">

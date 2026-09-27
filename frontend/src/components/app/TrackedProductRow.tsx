@@ -3,6 +3,7 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { ExportDialog } from "./ExportDialog";
 import { ManualScrapeDialog } from "./ManualScrapeDialog";
 import { MiniTrend } from "./MiniTrend";
+import { QuickViewModal } from "./QuickViewModal";
 import { Card, ProductMark } from "./primitives";
 import { OutcomeBadge, StockBadge } from "./status";
 import { DropdownMenu } from "../ui/dropdown-menu";
@@ -26,6 +27,7 @@ export function TrackedProductRow({
   const [exportOpen, setExportOpen] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,12 +64,15 @@ export function TrackedProductRow({
         <div className="flex min-w-0 flex-1 items-center gap-4">
           <ProductMark name={target.productName} />
           <div className="min-w-0">
-            <a
-              href={trackedHref(target.id)}
-              className="block truncate text-[15px] font-semibold text-foreground hover:text-primary"
+            {/* Name opens the quick view: preview on the monitoring surface,
+                full workspace one more click away. */}
+            <button
+              type="button"
+              onClick={() => setQuickOpen(true)}
+              className="block max-w-full truncate text-left text-[15px] font-semibold text-foreground outline-hidden hover:text-primary hover:underline hover:decoration-primary/40 hover:underline-offset-4 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               {target.productName}
-            </a>
+            </button>
             <p className="mt-0.5 truncate text-[13px] text-muted tabular-nums">
               {target.selectedOption} · ID {target.storeProductId}
             </p>
@@ -141,6 +146,12 @@ export function TrackedProductRow({
         productName={target.productName}
         onClose={() => setManualOpen(false)}
         onFinished={() => void onChanged()}
+      />
+      <QuickViewModal
+        open={quickOpen}
+        target={target}
+        values={values}
+        onClose={() => setQuickOpen(false)}
       />
       <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} target={target} />
       <ConfirmDialog
