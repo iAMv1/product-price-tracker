@@ -16,6 +16,12 @@ function cell(value: unknown): string {
   return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 
+/** Normalizes any parseable timestamp to ISO 8601 UTC; garbage passes through verbatim. */
+export function toIsoUtc(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toISOString();
+}
+
 export function buildProductCsv(
   target: Pick<TrackedTarget, "storeProductId" | "productName" | "selectedOption">,
   log: AttemptEntry[],
@@ -33,7 +39,9 @@ export function buildProductCsv(
         cell(target.storeProductId),
         cell(target.productName),
         cell(target.selectedOption),
-        cell(entry.attempted_at),
+        // Machine artifact, machine format: timestamps always leave here as
+        // ISO 8601 UTC, whatever shape the API string arrived in.
+        cell(toIsoUtc(entry.attempted_at)),
         cell(entry.price),
         cell(entry.stock),
         cell(entry.outcome),

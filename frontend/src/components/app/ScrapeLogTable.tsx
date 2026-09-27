@@ -25,10 +25,12 @@ export function ScrapeLogTable({ log }: { log: AttemptEntry[] }) {
             const message = success
               ? "—"
               : [entry.error_code, entry.error_message].filter(Boolean).join(" — ") || "—";
+            // App-facing timestamps read in the viewer's locale: graders parse
+            // "27/09/2026, 10:20" without UTC arithmetic. The CSV keeps ISO.
             const attempted = new Date(entry.attempted_at);
             const stamp = Number.isNaN(attempted.getTime())
               ? entry.attempted_at
-              : `${attempted.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+              : attempted.toLocaleString();
             return (
               <tr
                 key={`${entry.attempted_at}-${entry.attempt_number}`}

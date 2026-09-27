@@ -7,6 +7,7 @@ import {
 } from "../../services/api";
 import { Modal } from "./Modal";
 import { PrimaryButton, SecondaryButton, inputClassName } from "./controls";
+import { toast } from "../ui/toast-stack";
 
 /**
  * Export dialog from the wireframes. Unsupported server filters stay visible
@@ -25,21 +26,18 @@ export function ExportDialog({
   const [scope, setScope] = useState<"product" | "all">(target ? "product" : "all");
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
       setScope(target ? "product" : "all");
       setWorking(false);
       setError(null);
-      setDone(null);
     }
   }, [open, target]);
 
   async function submit() {
     setWorking(true);
     setError(null);
-    setDone(null);
     try {
       if (scope === "product" && target) {
         const log = await fetchScrapeLog(target.id, 200);
@@ -47,11 +45,15 @@ export function ExportDialog({
           `product-${target.storeProductId}-scrape-history.csv`,
           buildProductCsv(target, log),
         );
-        setDone(
+        // Success travels by toast — the app's success channel — so the
+        // dialog stays a clean re-export surface instead of growing captions.
+        toast(
+          "Export complete",
           log.length >= 200
-            ? "Downloaded this product’s latest 200 attempts."
+            ? `Downloaded this product’s latest 200 attempts.`
             : `Downloaded this product’s ${log.length} attempts.`,
         );
+        onClose();
       } else {
         const response = await fetch(exportCsvUrl());
         if (!response.ok) {
@@ -66,7 +68,8 @@ export function ExportDialog({
         link.click();
         link.remove();
         window.setTimeout(() => URL.revokeObjectURL(url), 5000);
-        setDone("Downloaded the server-generated full history.");
+        toast("Export complete", "Downloaded the server-generated full history.");
+        onClose();
       }
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Export failed");
@@ -138,11 +141,6 @@ export function ExportDialog({
       {error && (
         <p role="alert" className="mt-4 text-sm text-danger">
           {error}
-        </p>
-      )}
-      {done && (
-        <p role="status" className="mt-4 text-sm text-success">
-          {done}
         </p>
       )}
 

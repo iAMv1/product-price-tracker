@@ -54,13 +54,6 @@ function shortLabel(iso: string): string {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(date);
 }
 
-/** Wireframe-style UTC stamp: `2026-09-27 04:50 UTC`. */
-function utcStamp(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  return `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
-}
-
 function alertLabel(alert: AlertItem): string {
   if (alert.type === "price_drop") {
     return alert.toPrice == null
@@ -211,7 +204,7 @@ export function TrackedProduct({ targetId }: { targetId: string }) {
       active="dashboard"
       crumbs={[{ label: "Dashboard", href: "#/app" }, { label: target.productName }]}
       title={`${target.productName} (${target.selectedOption})`}
-      description={`Last scraped ${target.lastScrape ? utcStamp(target.lastScrape.attemptedAt) : "never"}`}
+      description={`Last scraped ${target.lastScrape ? new Date(target.lastScrape.attemptedAt).toLocaleString() : "never"}`}
       actions={
         <>
           <SecondaryButton onClick={() => setExportOpen(true)}>Export CSV</SecondaryButton>
@@ -382,7 +375,12 @@ export function TrackedProduct({ targetId }: { targetId: string }) {
                     {rangedHistory.map((entry) => (
                       <tr key={entry.observed_at} className="border-t border-border">
                         <td className="py-2 pr-3 whitespace-nowrap text-muted tabular-nums">
-                          {utcStamp(entry.observed_at)}
+                          {(() => {
+                            const d = new Date(entry.observed_at);
+                            return Number.isNaN(d.getTime())
+                              ? entry.observed_at
+                              : d.toLocaleString();
+                          })()}
                         </td>
                         <td className="py-2 pr-3 font-semibold tabular-nums">
                           {formatRupees(entry.price)}

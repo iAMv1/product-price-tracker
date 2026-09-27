@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { rescrapeTarget } from "../../services/api";
+import { fetchScrapeLog, rescrapeTarget } from "../../services/api";
+import { formatRupees } from "../../lib/format";
 import { Modal } from "./Modal";
 import { PrimaryButton, SecondaryButton } from "./controls";
 
@@ -29,6 +30,10 @@ export function ManualScrapeDialog({
   const [summary, setSummary] = useState<{ succeeded: number; failed: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  // Live progress, scoped to THIS run: the newest log rows at or after the
+  // moment the dialog opened. Older rows belong to previous runs and must
+  // never masquerade as current progress.
+  const [progress, setProgress] = useState<string | null>(null);
   // Latest callback without re-subscribing: parents (rows especially) pass
   // fresh inline closures every render, and re-running a scrape per render
   // would bill the store once per paint.
@@ -49,11 +54,39 @@ export function ManualScrapeDialog({
     firedRef.current = key;
     let cancelled = false;
     const controller = new AbortController();
+    // Progress baseline: only attempts recorded after this instant belong
+    // to the run this dialog triggered.
+    const startedAt = new Date().toISOString();
     setPhase("running");
     setSummary(null);
     setError(null);
     setElapsed(0);
+    setProgress("Contacting the tracker…");
     const timer = window.setInterval(() => setElapsed((value) => value + 1), 1000);
+
+    async function pollAttempts() {
+      try {
+        const log = await fetchScrapeLog(targetId, 5);
+        if (cancelled) return;
+        const fresh = log.filter((entry) => entry.attempted_at >= startedAt);
+        if (fresh.length === 0) {
+          setProgress("Contacting the tracker…");
+          return;
+        }
+        const latest = fresh[0]!;
+        const detail =
+          latest.outcome === "success"
+            ? latest.price == null
+              ? "price not recorded"
+              : formatRupees(latest.price)
+            : (latest.error_code ?? "no detail yet");
+        setProgress(`Attempt ${latest.attempt_number} recorded — ${latest.outcome} (${detail}).`);
+      } catch {
+        // Polling is advisory only; the main request owns real errors.
+      }
+    }
+    const poller = window.setInterval(() => void pollAttempts(), 3000);
+    void pollAttempts();
 
     async function run() {
       try {
@@ -75,6 +108,7 @@ export function ManualScrapeDialog({
       cancelled = true;
       controller.abort();
       window.clearInterval(timer);
+      window.clearInterval(poller);
     };
   }, [open, targetId, attempt]);
 
@@ -94,6 +128,11 @@ export function ManualScrapeDialog({
             Request sent — waiting for the tracker
             {elapsed >= 2 ? ` (${elapsed} s elapsed)` : ""}. Up to 3 attempts may run.
           </p>
+          {progress !== null && (
+            <p className="mt-1.5 text-sm font-medium text-foreground" role="status">
+              {progress}
+            </p>
+          )}
         </div>
       )}
 

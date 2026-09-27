@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildProductCsv } from "./exportCsv";
+import { buildProductCsv, toIsoUtc } from "./exportCsv";
 
 describe("buildProductCsv", () => {
   it("matches the server column order and leaves failed rows empty", () => {
@@ -34,8 +34,14 @@ describe("buildProductCsv", () => {
     );
     expect(csv).toBe(
       "product_id,product_name,selected_option,timestamp,price,stock,outcome,attempt_number\n" +
-        "2626,\"Redwick, \"\"Nano\"\"\",o1,2026-09-26T16:00:01Z,50396,0,success,1\n" +
-        "2626,\"Redwick, \"\"Nano\"\"\",o1,2026-09-26T18:00:01Z,,,failed,2\n",
+        "2626,\"Redwick, \"\"Nano\"\"\",o1,2026-09-26T16:00:01.000Z,50396,0,success,1\n" +
+        "2626,\"Redwick, \"\"Nano\"\"\",o1,2026-09-26T18:00:01.000Z,,,failed,2\n",
     );
+  });
+
+  it("normalizes timestamps to ISO 8601 UTC", () => {
+    expect(toIsoUtc("2026-09-27T06:50:01+02:00")).toBe("2026-09-27T04:50:01.000Z");
+    expect(toIsoUtc("2026-09-27T04:50:01.776Z")).toBe("2026-09-27T04:50:01.776Z");
+    expect(toIsoUtc("not-a-date")).toBe("not-a-date");
   });
 });
