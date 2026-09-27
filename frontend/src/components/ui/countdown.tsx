@@ -46,7 +46,7 @@ export function Countdown({
 
   return (
     <div className={cn("min-w-0", className)}>
-      <p className="text-[11px] font-semibold tracking-[0.12em] text-muted uppercase">
+      <p className="text-xs font-semibold tracking-[0.1em] text-muted uppercase">
         Next scheduled check
       </p>
       <p className="mt-1.5 flex items-baseline gap-2">

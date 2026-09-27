@@ -57,7 +57,7 @@ export function Eyebrow({
     // h1 (page) → h2 (sections) with no skips.
     <h2
       className={cn(
-        "text-[11px] font-semibold tracking-[0.12em] text-muted uppercase",
+        "text-xs font-semibold tracking-widest text-muted uppercase",
         className,
       )}
     >

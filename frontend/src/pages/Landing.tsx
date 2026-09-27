@@ -55,7 +55,7 @@ function ProofTicker({ targets }: { targets: TrackedTarget[] }) {
       className="relative z-0 flex overflow-hidden border-y border-border bg-card"
       aria-label="Live prices"
     >
-      <div className="relative z-10 flex shrink-0 items-center gap-2 border-r border-border bg-card px-4 text-[11px] font-semibold tracking-[0.12em] text-foreground uppercase sm:px-5">
+      <div className="relative z-10 flex shrink-0 items-center gap-2 border-r border-border bg-card px-4 text-xs font-semibold tracking-[0.1em] text-foreground uppercase sm:px-5">
         <span aria-hidden className="size-1.5 rounded-full bg-foreground motion-safe:animate-pulse" />
         Live
       </div>
@@ -120,7 +120,7 @@ function HeroProof({ targets }: { targets: TrackedTarget[] }) {
         className="rounded-2xl border border-border bg-card p-5 shadow-raised"
       >
         <div className="flex items-center justify-between">
-          <p className="text-[11px] font-semibold tracking-[0.12em] text-muted uppercase">
+          <p className="text-xs font-semibold tracking-[0.1em] text-muted uppercase">
             Live price
           </p>
           <span className="flex items-center gap-1.5 text-[12px] font-medium text-success">
@@ -165,7 +165,7 @@ function HeroProof({ targets }: { targets: TrackedTarget[] }) {
         {...rise(0.3)}
         className="mt-4 rounded-2xl border border-border bg-card p-4 shadow-raised"
       >
-        <p className="text-[11px] font-semibold tracking-[0.12em] text-muted uppercase">
+        <p className="text-xs font-semibold tracking-[0.1em] text-muted uppercase">
           Last run
         </p>
         {lastRun ? (
@@ -293,7 +293,11 @@ function HeroSpark({ productId }: { productId: string }) {
         {delta !== 0 && (
           <span className={dropped ? "text-success" : "text-muted"}>
             {" · "}
-            {dropped ? "▼" : "▲"} {formatRupees(Math.abs(delta))}
+            <span aria-hidden>
+              {dropped ? "▼" : "▲"}
+            </span>{" "}
+            <span className="sr-only">{dropped ? "down " : "up "}</span>
+            {formatRupees(Math.abs(delta))}
           </span>
         )}
       </p>

@@ -244,7 +244,17 @@ export function TrackedProduct({ targetId }: { targetId: string }) {
                         : "bg-surface text-muted"
                   }`}
                 >
-                  {change < 0 ? "▼" : change > 0 ? "▲" : "•"} {Math.abs(changePct).toFixed(1)}% (
+                  {change < 0 ? (
+                    <span aria-hidden>▼</span>
+                  ) : change > 0 ? (
+                    <span aria-hidden>▲</span>
+                  ) : (
+                    <span aria-hidden>•</span>
+                  )}{" "}
+                  <span className="sr-only">
+                    {change < 0 ? "down " : change > 0 ? "up " : "unchanged "}
+                  </span>
+                  {Math.abs(changePct).toFixed(1)}% (
                   {change < 0 ? "-" : change > 0 ? "+" : ""}
                   {formatRupees(Math.abs(change))})
                 </span>

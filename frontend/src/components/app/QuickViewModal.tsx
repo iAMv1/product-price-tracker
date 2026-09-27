@@ -39,7 +39,7 @@ export function QuickViewModal({
           <h2 id={titleId} className="truncate text-xl font-semibold tracking-tight">
             {target.productName}
           </h2>
-          <p className="mt-0.5 truncate text-[13px] text-muted tabular-nums">
+          <p className="mt-0.5 truncate text-sm text-muted tabular-nums">
             {target.selectedOption} · ID {target.storeProductId}
           </p>
         </div>
@@ -63,7 +63,17 @@ export function QuickViewModal({
               change < 0 ? "text-success" : change > 0 ? "text-danger" : "text-muted"
             }`}
           >
-            {change < 0 ? "▼" : change > 0 ? "▲" : "•"} {Math.abs(change).toFixed(1)}%
+            {change < 0 ? (
+              <span aria-hidden>▼</span>
+            ) : change > 0 ? (
+              <span aria-hidden>▲</span>
+            ) : (
+              <span aria-hidden>•</span>
+            )}{" "}
+            <span className="sr-only">
+              {change < 0 ? "down " : change > 0 ? "up " : "unchanged "}
+            </span>
+            {Math.abs(change).toFixed(1)}%
           </p>
         )}
       </div>
@@ -80,19 +90,19 @@ export function QuickViewModal({
 
       <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-border pt-4 text-sm">
         <div>
-          <dt className="text-[12px] text-muted">Last scraped</dt>
+          <dt className="text-xs font-medium text-muted">Last scraped</dt>
           <dd className="mt-0.5 font-semibold">
             {target.lastScrape ? <RelativeTime date={target.lastScrape.attemptedAt} /> : "never"}
           </dd>
         </div>
         <div>
-          <dt className="text-[12px] text-muted">Next scrape</dt>
+          <dt className="text-xs font-medium text-muted">Next scrape</dt>
           <dd className="mt-0.5 font-semibold tabular-nums">
             {nextScrapeIn(target.lastScrape?.attemptedAt, target.scrapeIntervalHours)}
           </dd>
         </div>
         <div>
-          <dt className="text-[12px] text-muted">Interval</dt>
+          <dt className="text-xs font-medium text-muted">Interval</dt>
           <dd className="mt-0.5 font-semibold tabular-nums">
             every {target.scrapeIntervalHours ?? 2} h
           </dd>
@@ -100,7 +110,7 @@ export function QuickViewModal({
       </dl>
 
       {target.lastScrape?.outcome === "failed" && (
-        <p role="alert" className="mt-3 rounded-xl bg-danger/10 px-3 py-2 text-[13px] font-medium text-danger">
+        <p role="alert" className="mt-3 rounded-xl bg-danger/10 px-3 py-2 text-sm font-medium text-danger">
           Latest scrape failed. Showing the last validated observation, not fresh data.
         </p>
       )}
