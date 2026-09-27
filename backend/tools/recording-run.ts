@@ -20,18 +20,24 @@
  * Recording safety: a non-localhost DATABASE_URL (or none at all) aborts
  * before any server, browser, or DB write happens.
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { chromium } from 'playwright';
 import { createApp } from '../src/app.js';
+import { productUrl } from '../src/http/deps.js';
 import { closePool, getPool } from '../src/persistence/db.js';
-import { getAttemptLog } from '../src/persistence/repositories.js';
+import {
+  createTrackedProduct,
+  getAttemptLog,
+  isUniqueViolation,
+  reactivateTrackedByIdentity,
+} from '../src/persistence/repositories.js';
 import { withDemoFault } from './fault-inject.js';
 import { scrapeProduct } from '../src/scraper/store/scrape.js';
 
 const BACKEND_PORT = 4100;
-const FRONTEND_PORT = 5173;
+const FRONTEND_PORT = 5175;
 const LOCAL_API = `http://127.0.0.1:${BACKEND_PORT}`;
 const LOCAL_APP = `http://localhost:${FRONTEND_PORT}`;
 const STORE = 'https://demo.inelabteamdev.com';
@@ -67,6 +73,16 @@ function requireLocalDatabase(): string {
 }
 requireLocalDatabase();
 mkdirSync(RECORDINGS_DIR, { recursive: true });
+
+// Capture-driver gate: when run under record-driver.ps1 it creates .go once
+// ffmpeg is rolling, so the cut starts on the intro frame. Manual runs have
+// no driver — proceed after a short wait instead of hanging forever.
+const GO_FILE = join(RECORDINGS_DIR, '.go');
+{
+  const deadline = Date.now() + 8000;
+  while (!existsSync(GO_FILE) && Date.now() < deadline) await sleep(250);
+  say(existsSync(GO_FILE) ? '[recording] driver gate released' : '[recording] no driver gate; starting anyway');
+}
 
 /** Ask the window-swap tooling to raise this window full-screen (topmost). */
 function flip(who: 'terminal' | 'browser'): void {
@@ -225,15 +241,38 @@ await sleep(4000);
 
 say('');
 say('STEP 3  -  failing response: option o99 does not exist on this product');
-const bad = await api<TrackResponse>('/api/tracked-products', {
-  method: 'POST',
-  body: JSON.stringify({ storeProductId: '2626', selectedOption: 'o99', scrapeIntervalHours: 2 }),
-});
-const badSummary = await api<ScrapeSummary>(`/api/tracked-products/${bad.id}/scrape`, {
+// o99 cannot be tracked through the API (validation rightly refuses it), so
+// the row is seeded directly — the FAILURE itself still flows through the
+// real HTTP scrape path below, which is what the recording demonstrates.
+const badIdentity = {
+  storeProductId: '2626',
+  selectedOption: 'o99',
+  productUrl: productUrl('2626'),
+};
+let badId: string;
+try {
+  badId = (
+    await createTrackedProduct(db, { ...badIdentity, productName: 'demo item 2626' })
+  ).id;
+} catch (error) {
+  if (!isUniqueViolation(error)) throw error;
+  const reactivated = await reactivateTrackedByIdentity(db, badIdentity);
+  badId =
+    reactivated?.id ??
+    String(
+      (
+        await db.query(
+          `SELECT id FROM tracked_products WHERE store_product_id = $1 AND selected_option = $2 AND product_url = $3`,
+          [badIdentity.storeProductId, badIdentity.selectedOption, badIdentity.productUrl],
+        )
+      ).rows[0]?.['id'],
+    );
+}
+const badSummary = await api<ScrapeSummary>(`/api/tracked-products/${badId}/scrape`, {
   method: 'POST',
 });
 say(`run ${badSummary.runId}: succeeded=${badSummary.succeeded} failed=${badSummary.failed}`);
-await printChain('2626/o99', bad.id);
+await printChain('2626/o99', badId);
 say('  nothing invented, nothing hidden: option_not_found is terminal -> one failed row, price and stock left empty');
 await sleep(6000);
 
@@ -264,7 +303,7 @@ for (const [index, targetId] of trackedIds.entries()) {
   const [storeProductId, selectedOption] = pairs[index] as [string, string];
   await printChain(`${storeProductId}/${selectedOption}`, targetId);
 }
-await printChain('2626/o99', bad.id);
+await printChain('2626/o99', badId);
 await sleep(10000);
 
 // Guarantee the cut stays inside the required 2-4 minute window.
