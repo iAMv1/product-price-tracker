@@ -125,6 +125,32 @@ export function TrackedProduct({ targetId }: { targetId: string }) {
     void load();
   }, [load]);
 
+  // Silent refresh for post-scrape: load() flashes the loading skeleton,
+  // which unmounts the ready branch (and the open dialog with it) — the
+  // remounted dialog would fire a second POST. This keeps the view mounted
+  // so the dialog reaches its success state exactly once.
+  const refreshQuiet = useCallback(async () => {
+    try {
+      const targets = await listTracked();
+      const target = targets.find((item) => item.id === targetId);
+      if (!target) return;
+      const [history, log, allAlerts] = await Promise.all([
+        fetchHistory(targetId, 200),
+        fetchScrapeLog(targetId, 200),
+        fetchAlerts(),
+      ]);
+      setState({
+        kind: "ready",
+        target,
+        history,
+        log,
+        alerts: allAlerts.filter((alert) => alert.trackedProductId === targetId),
+      });
+    } catch {
+      // Quiet path never breaks the visible page; next navigation reloads.
+    }
+  }, [targetId]);
+
   async function remove() {
     setRemoving(true);
     setRemoveError(null);
@@ -442,7 +468,7 @@ export function TrackedProduct({ targetId }: { targetId: string }) {
         targetId={target.id}
         productName={target.productName}
         onClose={() => setManualOpen(false)}
-        onFinished={refresh}
+        onFinished={() => void refreshQuiet()}
       />
       <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} target={target} />
       <ConfirmDialog

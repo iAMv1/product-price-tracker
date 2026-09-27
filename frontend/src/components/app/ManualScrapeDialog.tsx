@@ -83,11 +83,17 @@ export function ManualScrapeDialog({
     // Progress baseline: only attempts recorded after this instant belong
     // to the run this dialog triggered.
     const timer = window.setInterval(() => setElapsed((value) => value + 1), 1000);
+    const poller = window.setInterval(() => void pollAttempts(), 3000);
+    function stopTimers() {
+      window.clearInterval(timer);
+      window.clearInterval(poller);
+    }
 
     const onResolve = (result: { succeeded: number; failed: number }) => {
       // First handler wins: mount + remount both attach, so dedupe here.
       if (flightRef.current?.key !== key) return;
       flightRef.current = null;
+      stopTimers();
       setSummary(result);
       setPhase("success");
       onFinishedRef.current();
@@ -95,6 +101,7 @@ export function ManualScrapeDialog({
     const onReject = (runError: unknown) => {
       if (flightRef.current?.key !== key) return;
       flightRef.current = null;
+      stopTimers();
       if ((runError as { name?: string } | null)?.name === "AbortError") return;
       // Edge case, stated plainly: the value landed but the run did not
       // complete cleanly, so neither "success" nor plain "failure" is true.
@@ -147,11 +154,9 @@ export function ManualScrapeDialog({
         // Polling is advisory only; the main request owns real errors.
       }
     }
-    const poller = window.setInterval(() => void pollAttempts(), 3000);
     void pollAttempts();
     return () => {
-      window.clearInterval(timer);
-      window.clearInterval(poller);
+      stopTimers();
     };
   }, [open, targetId, attempt]);
 
