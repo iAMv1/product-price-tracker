@@ -80,29 +80,24 @@ export function Sparkline({
     <div className={cn("w-[520px] max-w-full", className)}>
       <div className="flex items-end justify-between gap-3">
         <div>
-          <p className="font-data text-[11px] tracking-[0.14em] text-muted uppercase">
-            {title}
-          </p>
-          <p className="font-data mt-1 text-[26px] leading-none font-semibold tracking-tight text-foreground tabular-nums">
+          <p className="text-[13px] font-semibold text-muted">{title}</p>
+          <p className="mt-1 text-2xl leading-none font-semibold tracking-tight text-foreground tabular-nums">
             {format(last.value)}
           </p>
         </div>
-        {/* Delta as a boxed annotation — mono, tabular, red only on a drop. */}
+        {/* Delta uses shopper semantics: a lower price is good news. */}
         <p
           className={cn(
-            "font-data border border-border px-2 py-1 text-[12px] leading-none whitespace-nowrap",
+            "rounded-full border px-2.5 py-1 text-[13px] font-semibold whitespace-nowrap tabular-nums",
             delta < 0
-              ? "text-marker"
+              ? "border-success/30 bg-success/10 text-success"
               : delta > 0
-                ? "text-foreground"
-                : "text-muted",
+                ? "border-danger/30 bg-danger/10 text-danger"
+                : "border-border bg-surface text-muted",
           )}
         >
-          <span className="font-semibold tabular-nums">
-            {delta > 0 ? "+" : delta < 0 ? "-" : ""}
-            {format(Math.abs(delta))}
-          </span>{" "}
-          vs {first.label}
+          {delta > 0 ? "+" : delta < 0 ? "-" : ""}
+          {format(Math.abs(delta))} vs {first.label}
         </p>
       </div>
 
@@ -191,7 +186,7 @@ export function Sparkline({
           </text>
           <motion.path
             d={area}
-            className="fill-foreground/[0.08]"
+            className="fill-primary/10"
             initial={{ opacity: 0 }}
             animate={inView ? { opacity: 1 } : undefined}
             transition={DRAW}
@@ -199,7 +194,7 @@ export function Sparkline({
           <motion.path
             d={line}
             fill="none"
-            className="stroke-foreground"
+            className="stroke-primary"
             strokeWidth={2.5}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -211,26 +206,12 @@ export function Sparkline({
                 : { pathLength: DRAW, opacity: { duration: 0.05 } }
             }
           />
-          {/* Every fall from the previous observation gets a red marker —
-              the one accent, spent only where the price actually dropped. */}
-          {data.map((d, i) =>
-            i > 0 && d.value < data[i - 1]!.value ? (
-              <circle
-                key={`drop-${i}`}
-                cx={xAt(i)}
-                cy={yAt(d.value)}
-                r={3}
-                className="fill-background stroke-marker"
-                strokeWidth={1.5}
-              />
-            ) : null,
-          )}
           {/* The reading at rest: last point, always marked. */}
           <circle
             cx={xAt(data.length - 1)}
             cy={yAt(last.value)}
             r={3.5}
-            className="fill-foreground"
+            className="fill-primary"
           />
         </svg>
 
@@ -246,11 +227,11 @@ export function Sparkline({
             style={{ left: pct(x, W) }}
           />
           <div
-            className="absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground ring-2 ring-background"
+            className="absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary ring-2 ring-card"
             style={{ left: pct(x, W), top: pct(y, H) }}
           />
           <div
-            className="absolute bottom-full mb-2.5 flex -translate-x-1/2 items-baseline gap-2 rounded-full bg-foreground px-3 py-1.5 text-sm whitespace-nowrap text-background"
+            className="absolute bottom-full mb-2.5 flex -translate-x-1/2 items-baseline gap-2 rounded-xl bg-primary px-3 py-1.5 text-sm whitespace-nowrap text-on-primary shadow-raised"
             style={{ left: pct(tipX, W) }}
           >
             <span className="font-semibold tabular-nums">{format(point.value)}</span>

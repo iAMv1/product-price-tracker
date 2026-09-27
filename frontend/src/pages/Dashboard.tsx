@@ -1,38 +1,22 @@
-import { useCallback, useState } from "react";
-import { SiteNav } from "../components/site-nav";
-import { OverviewBand, RunsStrip } from "../components/dashboard/OverviewBand";
-import { SignalsPanel } from "../components/dashboard/SignalsPanel";
-import { TargetsGrid } from "../components/dashboard/TargetsGrid";
-import { TrackPanel } from "../components/dashboard/TrackPanel";
-import { ExportButton, type ExportStatus } from "../components/ui/export-button";
+import { useState } from "react";
+import { AppShell } from "../components/app/AppShell";
+import { ExportDialog } from "../components/app/ExportDialog";
+import { Card, Eyebrow } from "../components/app/primitives";
+import { PrimaryButton, SecondaryButton } from "../components/app/controls";
+import { OutcomeBadge } from "../components/app/status";
+import { TrackedProductRow } from "../components/app/TrackedProductRow";
+import { TargetCardSkeleton } from "../components/ui/skeleton-loader";
 import { Countdown } from "../components/ui/countdown";
 import { LiveIndicator, useWorkIndicator } from "../components/ui/live-indicator";
-import { toast } from "../components/ui/toast-stack";
+import { RelativeTime } from "../components/ui/relative-time";
+import { runCounts } from "../lib/runStatus";
 import { useDashboardData } from "../hooks/useDashboardData";
-import { useSearchFlow } from "../hooks/useSearchFlow";
-import { exportCsvUrl, type HealthResponse } from "../services/api";
+import { goHash } from "../router";
+import type { HealthResponse } from "../services/api";
 
 /**
- * The dashboard, as composition rather than a state machine.
- *
- * This file used to be 679 lines holding 25 useState hooks: boot, the target
- * list, search, product picking, options, tracking, alerts, change events,
- * runs, export, and the untrack path — all in one component. The reads now
- * live in `useDashboardData` and the find → pick → track flow in
- * `useSearchFlow`; the presentational pieces live in `components/dashboard/`.
- * What remains here is only what genuinely belongs to the page.
- *
- * What did NOT change, and must not:
- * - light/dark mode, via the existing ThemeToggle inside SiteNav
- * - the design tokens; the instrument grid is layered on top of them
- * - every honesty rule: a failure is never hidden, a missing price is stated
- *   in words rather than shown as zero, and no skeleton or progress indicator
- *   ever invents a value
- */
-/**
- * Health answers two different questions — is the DB configured, and can it
- * be reached right now — so the status line does too. An older payload
- * without the live probe may only claim configuration, never connection.
+ * Dashboard from the wireframes: stat tiles, tracked-product rows, and recent
+ * runs. Search lives on its own page; Add Product routes there.
  */
 function describeDatabase(health: HealthResponse): string {
   const probe = health.database;
@@ -44,183 +28,168 @@ function describeDatabase(health: HealthResponse): string {
 }
 
 export default function Dashboard() {
-  const {
-    boot,
-    retryBoot,
-    targets,
-    targetsError,
-    alerts,
-    changes,
-    runs,
-    refresh,
-    untrack,
-  } = useDashboardData();
-
-  const flow = useSearchFlow(refresh);
-  const [exportStatus, setExportStatus] = useState<ExportStatus>("idle");
-  const resetExport = useCallback(() => setExportStatus("idle"), []);
-
-  // The CSV is a real download, so the button only claims "done" after a
-  // verified 200 with a real blob. A failed export goes back to idle with an
-  // honest error — never a green "Done" over an error page saved as .csv.
-  // ExportButton itself refuses simulated progress; this keeps it truthful.
-  const runExport = useCallback(async () => {
-    setExportStatus("working");
-    try {
-      const response = await fetch(exportCsvUrl());
-      if (!response.ok) {
-        throw new Error(`export failed with HTTP ${response.status}`);
-      }
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "scrape-history.csv";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
-      setExportStatus("done");
-    } catch (error) {
-      setExportStatus("idle");
-      toast(
-        "Export failed",
-        error instanceof Error ? error.message : "Unknown error",
-      );
-    }
-  }, []);
-  const scraping = flow.tracking || flow.bulkTracking;
+  const { boot, retryBoot, targets, targetsError, alerts, runs, refresh, untrack } =
+    useDashboardData();
+  const [exportOpen, setExportOpen] = useState(false);
   const work = useWorkIndicator({
-    scraping,
+    scraping: false,
     reachable: boot.kind === "ready",
     connecting: boot.kind === "loading",
   });
 
-  const priceDrops = alerts.filter((a) => a.type === "price_drop").length;
-  const failures = alerts.filter((a) => a.type === "scrape_failed").length;
+  const priceDrops = alerts.filter((alert) => alert.type === "price_drop").length;
+  const failures = alerts.filter((alert) => alert.type === "scrape_failed").length;
+  const stats = [
+    { label: "Tracked products", value: targets.length, note: "Active targets" },
+    { label: "Price drops", value: priceDrops, note: "From validated checks" },
+    { label: "Failed checks", value: failures, note: "Latest failed attempts" },
+    { label: "Recent runs", value: runs.length, note: "Latest 10 scheduler runs" },
+  ];
+
+  if (boot.kind === "error") {
+    return (
+      <AppShell active="dashboard" title="Dashboard" description="Monitor your tracked products and price changes.">
+        <Card className="text-center">
+          <h2 className="text-lg font-semibold">We can&rsquo;t reach the tracker</h2>
+          <p className="mx-auto mt-2 max-w-[52ch] text-sm text-muted">
+            Nothing is lost — tracked products are stored on the server. {boot.message}
+          </p>
+          <div className="mt-4">
+            <PrimaryButton onClick={() => void retryBoot()}>Try again</PrimaryButton>
+          </div>
+        </Card>
+      </AppShell>
+    );
+  }
 
   return (
-    <>
-      <SiteNav variant="app" />
-
-      {/* Boot failure is a first-class state with its own recovery, not a
-          blank page: the user is told what happened and given one click. */}
-      {boot.kind === "error" ? (
-        <main id="main" tabIndex={-1} className="mx-auto w-full max-w-6xl px-4 py-24 sm:px-6">
-          <div className="mx-auto max-w-[52ch] text-center">
-            <LiveIndicator
-              tone="off"
-              label="Cannot reach the backend"
-              className="mx-auto"
-            />
-            <h1 className="font-voice mt-5 text-3xl">
-              We can&rsquo;t reach the tracker
-            </h1>
-            <p className="mt-3 text-[15px] text-muted">
-              Nothing is lost &mdash; your tracked products are stored on the
-              server. This is on our side. Try again in a moment.
-            </p>
-            <p className="mt-2 font-data text-[13px] text-muted">
-              {boot.message}
-            </p>
-            <button
-              type="button"
-              onClick={() => void retryBoot()}
-              className="mt-6 min-h-11 rounded-lg border border-border px-5 text-sm font-medium text-foreground transition-colors hover:bg-surface"
-            >
-              Try again
-            </button>
-          </div>
-        </main>
-      ) : (
-        <main id="main" tabIndex={-1} className="instrument-grid mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
-          <header className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h1 className="font-voice text-[42px] leading-[1.05]">
-                Price Tracker
-              </h1>
-              <p className="font-data mt-2 text-[13px] tracking-[0.08em] text-muted uppercase">
-                Validated observations only. Failures stay visible.
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <LiveIndicator tone={work.tone} label={work.label} />
-              <ExportButton
-                status={exportStatus}
-                onExport={runExport}
-                onReset={resetExport}
-              />
-            </div>
-          </header>
-
-          {boot.kind === "loading" ? (
-            <p className="mt-2 text-[13px] text-muted" role="status">
-              Loading your tracked prices…
-            </p>
-          ) : (
-            <p className="mt-2 font-data text-[13px] text-muted">
-              backend {boot.health.environment} · database{" "}
-              {/* The health body separates "configured" from "reachable";
-                  saying "connected" about an env var would not. */}
-              <span
-                className={
-                  boot.health.database === "unreachable"
-                    ? "font-medium text-danger"
-                    : undefined
-                }
-              >
-                {describeDatabase(boot.health)}
-              </span>
-            </p>
-          )}
-
-          {/* Order follows the mockup and the 80/20 law: the task the visitor
-              came to do (find a product) leads, then the overview figures,
-              then the tracked grid. Signals and run history are evidence —
-              they sit below the product list instead of competing with the
-              task above the fold. */}
-          <TrackPanel flow={flow} />
-
-          <div className="mt-8">
-            <OverviewBand
-              trackedCount={targets.length}
-              drops={priceDrops}
-              failures={failures}
-              runs={runs}
-            />
-          </div>
-
-          <TargetsGrid
-            targets={targets}
-            loading={boot.kind === "loading"}
-            error={targetsError}
-            onChanged={refresh}
-            onUntracked={untrack}
-          />
-
-          <SignalsPanel alerts={alerts} changes={changes} />
-          <RunsStrip runs={runs} />
-
-          <footer className="mt-10 flex flex-wrap items-start justify-between gap-4 border-t border-border pt-6">
-            {/* The schedule is real, so it counts down in real time — and the
-                caption admits the check can run late rather than implying the
-                clock is a promise. */}
-            <Countdown className="max-w-md" />
-            <p className="flex flex-wrap items-center gap-4 text-[13px] text-muted">
-              <span>components adapted from xevrion/ui-lab (MIT)</span>
-              <a href="#/" className="inline-block py-1.5 hover:text-foreground">
-                Landing
-              </a>
-              <a href="#/docs" className="inline-block py-1.5 hover:text-foreground">
-                Docs
-              </a>
-              <a href="#/changelog" className="inline-block py-1.5 hover:text-foreground">
-                Changelog
-              </a>
-            </p>
-          </footer>
-        </main>
+    <AppShell
+      active="dashboard"
+      title="Dashboard"
+      description="Monitor your tracked products and price changes."
+      actions={
+        <>
+          <LiveIndicator tone={work.tone} label={work.label} />
+          <SecondaryButton onClick={() => setExportOpen(true)}>Export CSV</SecondaryButton>
+          <PrimaryButton onClick={() => goHash("#/search")}>Add Product</PrimaryButton>
+        </>
+      }
+    >
+      {boot.kind === "ready" && (
+        <p className="mb-6 text-[13px] text-muted tabular-nums">
+          backend {boot.health.environment} · database {describeDatabase(boot.health)}
+        </p>
       )}
-    </>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Tracking summary">
+        {boot.kind === "loading"
+          ? [0, 1, 2, 3].map((skeleton) => (
+              <Card key={skeleton} className="p-4">
+                <div className="h-4 w-24 rounded bg-foreground/10 motion-safe:animate-pulse" />
+                <div className="mt-3 h-8 w-16 rounded bg-foreground/10 motion-safe:animate-pulse" />
+                <span className="sr-only">Loading summary…</span>
+              </Card>
+            ))
+          : stats.map((stat) => (
+              <Card key={stat.label} className="p-4">
+                <Eyebrow>{stat.label}</Eyebrow>
+                <p className="mt-2 text-[28px] leading-none font-semibold tabular-nums">
+                  {stat.value}
+                </p>
+                <p className="mt-2 text-[13px] text-muted">{stat.note}</p>
+              </Card>
+            ))}
+      </div>
+
+      <section aria-label="Tracked products" className="mt-8">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold tracking-tight">Tracked Products</h2>
+          {targets.length > 0 && (
+            <span className="text-[13px] text-muted tabular-nums">{targets.length}</span>
+          )}
+        </div>
+        {targetsError && (
+          <div role="alert" className="mb-4 rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3">
+            <p className="text-sm font-semibold text-danger">{targetsError}</p>
+            <SecondaryButton className="mt-3" onClick={() => void refresh()}>
+              Retry
+            </SecondaryButton>
+          </div>
+        )}
+        {boot.kind === "loading" ? (
+          <div className="grid gap-4">
+            <TargetCardSkeleton count={2} />
+          </div>
+        ) : targets.length === 0 && targetsError === null ? (
+          <Card className="text-center">
+            <h3 className="text-[17px] font-semibold">No tracked products yet</h3>
+            <p className="mx-auto mt-2 max-w-[48ch] text-sm text-muted">
+              Search for a product to start tracking its price and stock. Checks run
+              automatically; failures stay visible.
+            </p>
+            <div className="mt-4">
+              <PrimaryButton onClick={() => goHash("#/search")}>Search Products</PrimaryButton>
+            </div>
+          </Card>
+        ) : (
+          <div className="grid gap-4">
+            {targets.map((target) => (
+              <TrackedProductRow
+                key={target.id}
+                target={target}
+                onChanged={refresh}
+                onUntracked={untrack}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section aria-label="Recent runs" className="mt-10">
+        <h2 className="text-lg font-semibold tracking-tight">Recent runs</h2>
+        {runs.length === 0 ? (
+          <p className="mt-2 text-sm text-muted">No runs loaded yet.</p>
+        ) : (
+          <Card className="mt-3 p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-sm">
+                <thead>
+                  <tr className="text-left text-[12px] font-semibold tracking-[0.08em] text-muted uppercase">
+                    <th scope="col" className="px-4 py-3">Started</th>
+                    <th scope="col" className="px-4 py-3">Trigger</th>
+                    <th scope="col" className="px-4 py-3">Status</th>
+                    <th scope="col" className="px-4 py-3">Targets</th>
+                    <th scope="col" className="px-4 py-3">Result</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {runs.slice(0, 5).map((run) => (
+                    <tr key={run.id} className="border-t border-border first:border-t-0">
+                      <td className="px-4 py-3 text-muted">
+                        <RelativeTime date={run.startedAt} />
+                      </td>
+                      <td className="px-4 py-3 capitalize">{run.triggerType}</td>
+                      <td className="px-4 py-3">
+                        <OutcomeBadge outcome={run.status} />
+                      </td>
+                      <td className="px-4 py-3 tabular-nums">{run.targetCount}</td>
+                      <td className="px-4 py-3 text-muted tabular-nums">
+                        {runCounts(run) || "no attempts recorded"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
+      </section>
+
+      <footer className="mt-10 border-t border-border pt-6">
+        <Countdown className="max-w-md" />
+      </footer>
+
+      <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />
+    </AppShell>
   );
 }

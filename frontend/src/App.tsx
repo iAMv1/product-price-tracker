@@ -7,6 +7,9 @@ import { Toaster } from "./components/ui/toast-stack";
 // Route-level splitting: only the landing shell ships up front; dashboard,
 // product, docs and changelog load on navigation (fixes the >500 kB warning).
 const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Search = lazy(() => import("./pages/Search"));
+const Alerts = lazy(() => import("./pages/Alerts"));
+const Settings = lazy(() => import("./pages/Settings"));
 const Docs = lazy(() => import("./pages/Docs"));
 const Changelog = lazy(() => import("./pages/Changelog"));
 const Product = lazy(() => import("./pages/Product"));
@@ -25,9 +28,13 @@ function RouteLoading() {
 const TITLES: Record<Route, string> = {
   landing: "Product Price Tracker — honest price history",
   app: "Dashboard — Product Price Tracker",
+  search: "Search Products — Product Price Tracker",
+  tracked: "Tracked Product — Product Price Tracker",
+  alerts: "Alerts — Product Price Tracker",
+  settings: "Settings — Product Price Tracker",
   docs: "Docs — Product Price Tracker",
   changelog: "Changelog — Product Price Tracker",
-  product: "Quick view — Product Price Tracker",
+  product: "Product — Product Price Tracker",
 };
 
 /** Shell: hash routes, titles, skip link, focus reset, route fade. */
@@ -65,6 +72,10 @@ export default function App() {
         <Suspense fallback={<RouteLoading />}>
           {route === "landing" && <Landing />}
           {route === "app" && <Dashboard />}
+          {route === "search" && <Search />}
+          {route === "tracked" && <Product />}
+          {route === "alerts" && <Alerts />}
+          {route === "settings" && <Settings />}
           {route === "docs" && <Docs />}
           {route === "changelog" && <Changelog />}
           {route === "product" && <Product />}

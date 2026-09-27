@@ -21,6 +21,12 @@
   --background: light-dark(#ffffff, #0a0a0a);
   --foreground: light-dark(#171717, #ededed);
   --surface: light-dark(#f5f5f5, #161616);
+  --app: light-dark(#eef3fb, #060b18);
+  --card: light-dark(#ffffff, #0c1428);
+  --primary: light-dark(#1d4ed8, #60a5fa);
+  --primary-strong: light-dark(#1e40af, #3b82f6);
+  --on-primary: light-dark(#ffffff, #081226);
+  --success: light-dark(#15803d, #4ade80);
   --border: light-dark(#e5e5e5, #262626);
   --muted: light-dark(#6b6b6b, #8f8f8f);
   /* Deeper in light mode so white text on it clears 4.5:1. */
@@ -51,6 +57,12 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
+  --color-app: var(--app);
+  --color-card: var(--card);
+  --color-primary: var(--primary);
+  --color-primary-strong: var(--primary-strong);
+  --color-on-primary: var(--on-primary);
+  --color-success: var(--success);
   --color-border: var(--border);
   --color-muted: var(--muted);
   --color-danger: var(--danger);

@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { parseHash, parseProductId } from "./router";
+import {
+  parseHash,
+  parseProductId,
+  parseSearchQuery,
+  parseTrackedId,
+  productHref,
+  searchHref,
+  trackedHref,
+} from "./router";
 
 describe("parseHash", () => {
   it("routes the known pages", () => {
@@ -24,6 +32,14 @@ describe("parseHash", () => {
     expect(parseHash("#/product/tgt_123")).toBe("product");
     expect(parseHash("#/product")).toBe("product");
   });
+
+  it("routes the new application sections", () => {
+    expect(parseHash("#/search?q=laptop")).toBe("search");
+    expect(parseHash("#/dashboard")).toBe("app");
+    expect(parseHash("#/tracked/target-1?tab=log")).toBe("tracked");
+    expect(parseHash("#/alerts")).toBe("alerts");
+    expect(parseHash("#/settings")).toBe("settings");
+  });
 });
 
 describe("parseProductId", () => {
@@ -36,5 +52,16 @@ describe("parseProductId", () => {
     expect(parseProductId("#/app")).toBeNull();
     expect(parseProductId("#/product")).toBeNull();
     expect(parseProductId("")).toBeNull();
+  });
+});
+
+describe("application links", () => {
+  it("parses tracked ids, search queries, and link helpers", () => {
+    expect(parseTrackedId("#/tracked/target-1?tab=log")).toBe("target-1");
+    expect(parseTrackedId("#/app")).toBeNull();
+    expect(parseSearchQuery("#/search?q=laptop%20stand")).toBe("laptop stand");
+    expect(searchHref("laptop stand")).toBe("#/search?q=laptop%20stand");
+    expect(productHref("2626")).toBe("#/product/2626");
+    expect(trackedHref("target-1", "log")).toBe("#/tracked/target-1?tab=log");
   });
 });

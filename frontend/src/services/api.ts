@@ -139,11 +139,12 @@ async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   return readJson<T>(response, path);
 }
 
-async function postJson<T>(path: string, body?: unknown): Promise<T> {
+async function postJson<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`${BASE_URL}${path}`, {
     method: 'POST',
     headers: { accept: 'application/json', 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
+    ...(signal ? { signal } : {}),
   });
   return readJson<T>(response, path);
 }
@@ -216,20 +217,29 @@ export async function untrackTarget(id: string): Promise<void> {
   if (!response.ok) await throwHttpError(response, path);
 }
 
-export function fetchHistory(id: string): Promise<HistoryEntry[]> {
+export function fetchHistory(id: string, limit = 100): Promise<HistoryEntry[]> {
+  const bounded = Math.min(200, Math.max(1, Math.round(limit)));
   return getJson<{ results: HistoryEntry[] }>(
-    `/api/tracked-products/${encodeURIComponent(id)}/history?limit=100`,
+    `/api/tracked-products/${encodeURIComponent(id)}/history?limit=${bounded}`,
   ).then((data) => data.results);
 }
 
-export function fetchScrapeLog(id: string): Promise<AttemptEntry[]> {
+export function fetchScrapeLog(id: string, limit = 100): Promise<AttemptEntry[]> {
+  const bounded = Math.min(200, Math.max(1, Math.round(limit)));
   return getJson<{ results: AttemptEntry[] }>(
-    `/api/tracked-products/${encodeURIComponent(id)}/scrape-log?limit=100`,
+    `/api/tracked-products/${encodeURIComponent(id)}/scrape-log?limit=${bounded}`,
   ).then((data) => data.results);
 }
 
-export function rescrapeTarget(id: string): Promise<{ succeeded: number; failed: number }> {
-  return postJson(`/api/tracked-products/${encodeURIComponent(id)}/scrape`);
+export function rescrapeTarget(
+  id: string,
+  signal?: AbortSignal,
+): Promise<{ succeeded: number; failed: number }> {
+  return postJson(
+    `/api/tracked-products/${encodeURIComponent(id)}/scrape`,
+    undefined,
+    signal,
+  );
 }
 
 export interface AlertItem {
