@@ -221,7 +221,7 @@ export default function Search() {
             </p>
           )}
 
-          {submitted && hits !== null && (
+          {submitted && hits !== null && hits.length > 0 && (
             <p className="mt-5 text-sm text-muted" role="status">
               Showing {hits.length} result{hits.length === 1 ? "" : "s"} for
               &ldquo;{search.query.trim()}&rdquo; in store order.
@@ -232,8 +232,24 @@ export default function Search() {
             <div className="mt-4 rounded-2xl border border-dashed border-border bg-card px-6 py-10 text-center">
               <p className="text-[17px] font-semibold text-foreground">No products found</p>
               <p className="mx-auto mt-2 max-w-[48ch] text-sm text-muted">
-                Try fewer words, a partial name, or the numeric store ID.
+                Try fewer words, a partial name, or the numeric store ID — or
+                start from a category the store answers:
               </p>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                {["tablet", "camera", "keyboard"].map((example) => (
+                  <button
+                    key={example}
+                    type="button"
+                    onClick={() => {
+                      search.setQuery(example);
+                      void search.runSearch(example);
+                    }}
+                    className="min-h-10 rounded-full border border-border px-4 text-sm font-medium outline-hidden transition-colors hover:border-foreground/40 hover:text-primary focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
