@@ -8,6 +8,7 @@ import {
   isUniqueViolation,
   listActiveTrackedProducts,
   parseIntervalHours,
+  pinTrackedProductOptionLabel,
   pinTrackedProductSku,
   reactivateTrackedByIdentity,
   updateTrackedInterval,
@@ -49,6 +50,7 @@ trackedRouter.get('/', async (req: Request, res: Response) => {
         scrapeIntervalHours:
           typeof row.scrape_interval_hours === 'number' ? row.scrape_interval_hours : 2,
         sku: row.sku,
+        optionLabel: row.option_label,
         latest: latest
           ? { price: latest.price, stock: latest.stock, observedAt: latest.observed_at }
           : null,
@@ -101,6 +103,7 @@ trackedRouter.post('/', async (req: Request, res: Response) => {
   }
   let productName: string;
   let itemSku: string | undefined;
+  let optionLabel: string | undefined;
   try {
     const item = parseStoreItem(fetched.json);
     const matched = matchOption(item, selectedOption);
@@ -116,6 +119,7 @@ trackedRouter.post('/', async (req: Request, res: Response) => {
     }
     productName = item.name;
     itemSku = item.sku;
+    optionLabel = matched.option.label;
   } catch {
     res.status(500).json({ error: 'handshake_drift', message: 'item changed shape unexpectedly' });
     return;
@@ -181,6 +185,10 @@ trackedRouter.post('/', async (req: Request, res: Response) => {
   if (itemSku !== undefined && row.sku == null) {
     await pinTrackedProductSku(db, row.id, itemSku);
     row = { ...row, sku: itemSku };
+  }
+  if (optionLabel !== undefined && row.option_label == null) {
+    await pinTrackedProductOptionLabel(db, row.id, optionLabel);
+    row = { ...row, option_label: optionLabel };
   }
 
   // Immediate first scrape: seeds history + log without waiting for cron.

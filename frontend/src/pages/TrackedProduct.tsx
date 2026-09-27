@@ -19,12 +19,14 @@ import { goHash, parseTab, trackedHref, useRoute } from "../router";
 import {
   fetchAlerts,
   fetchHistory,
+  fetchProduct,
   fetchScrapeLog,
   listTracked,
   untrackTarget,
   type AlertItem,
   type AttemptEntry,
   type HistoryEntry,
+  type ProductDetail,
   type TrackedTarget,
 } from "../services/api";
 
@@ -38,6 +40,8 @@ type ViewState =
       history: HistoryEntry[];
       log: AttemptEntry[];
       alerts: AlertItem[];
+      /** Store catalogue detail (brand, specs, reviews) — advisory only. */
+      detail: ProductDetail | null;
     };
 
 const TABS = [
@@ -52,6 +56,12 @@ function shortLabel(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(date);
+}
+
+/** camelCase spec keys ("inTheBox") read as words ("In the box"). */
+function humanSpecKey(key: string): string {
+  const words = key.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 function alertLabel(alert: AlertItem): string {
@@ -87,10 +97,13 @@ export function TrackedProduct({ targetId }: { targetId: string }) {
         setState({ kind: "missing" });
         return;
       }
-      const [history, log, allAlerts] = await Promise.all([
+      const [history, log, allAlerts, detail] = await Promise.all([
         fetchHistory(targetId, 200),
         fetchScrapeLog(targetId, 200),
         fetchAlerts(),
+        // Catalogue detail is advisory: the page must survive the store
+        // being unreachable — price truth comes from scraped history.
+        fetchProduct(target.storeProductId).catch(() => null),
       ]);
       setState({
         kind: "ready",
@@ -98,6 +111,7 @@ export function TrackedProduct({ targetId }: { targetId: string }) {
         history,
         log,
         alerts: allAlerts.filter((alert) => alert.trackedProductId === targetId),
+        detail,
       });
     } catch (error) {
       setState({
@@ -134,10 +148,11 @@ export function TrackedProduct({ targetId }: { targetId: string }) {
       const targets = await listTracked();
       const target = targets.find((item) => item.id === targetId);
       if (!target) return;
-      const [history, log, allAlerts] = await Promise.all([
+      const [history, log, allAlerts, detail] = await Promise.all([
         fetchHistory(targetId, 200),
         fetchScrapeLog(targetId, 200),
         fetchAlerts(),
+        fetchProduct(target.storeProductId).catch(() => null),
       ]);
       setState({
         kind: "ready",
@@ -145,6 +160,7 @@ export function TrackedProduct({ targetId }: { targetId: string }) {
         history,
         log,
         alerts: allAlerts.filter((alert) => alert.trackedProductId === targetId),
+        detail,
       });
     } catch {
       // Quiet path never breaks the visible page; next navigation reloads.
@@ -204,7 +220,9 @@ export function TrackedProduct({ targetId }: { targetId: string }) {
     );
   }
 
-  const { target, history, log, alerts } = state;
+  const { target, history, log, alerts, detail } = state;
+  // Human option name first ("Starter bundle"), raw id kept for evidence.
+  const optionName = target.optionLabel ?? target.selectedOption;
   const rangedHistory = filterByRange(history, (entry) => entry.observed_at, range);
   const prices = rangedHistory.map((entry) => entry.price);
   // History arrives newest-first: index 0 is the current price, the last
@@ -229,7 +247,7 @@ export function TrackedProduct({ targetId }: { targetId: string }) {
     <AppShell
       active="dashboard"
       crumbs={[{ label: "Dashboard", href: "#/app" }, { label: target.productName }]}
-      title={`${target.productName} (${target.selectedOption})`}
+      title={`${target.productName} (${optionName})`}
       description={`Last scraped ${target.lastScrape ? new Date(target.lastScrape.attemptedAt).toLocaleString() : "never"}`}
       actions={
         <>
@@ -287,7 +305,7 @@ export function TrackedProduct({ targetId }: { targetId: string }) {
               {target.lastScrape && <OutcomeBadge outcome={target.lastScrape.outcome} />}
             </div>
             <p className="mt-2 text-sm text-muted tabular-nums">
-              {target.storeProductId} · {target.selectedOption}
+              {target.storeProductId} · {optionName} · {target.selectedOption}
               {target.sku !== null && <> · SKU {target.sku}</>} ·{" "}
               <a
                 href={target.productUrl}
@@ -373,6 +391,48 @@ export function TrackedProduct({ targetId }: { targetId: string }) {
               </div>
             </dl>
           </Card>
+          {detail !== null && (
+            <Card>
+              <Eyebrow>About this product</Eyebrow>
+              <p className="mt-2 text-sm text-muted">
+                {[detail.brand, detail.category].filter(Boolean).join(" · ")}
+                {detail.sku !== null && ` · SKU ${detail.sku}`}
+              </p>
+              {detail.description !== null && (
+                <p className="mt-2 text-sm text-foreground">{detail.description}</p>
+              )}
+              {detail.specs !== null && Object.keys(detail.specs).length > 0 && (
+                <dl className="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+                  {Object.entries(detail.specs).map(([key, value]) => (
+                    <div key={key} className="flex gap-2">
+                      <dt className="shrink-0 text-muted">{humanSpecKey(key)}</dt>
+                      <dd className="font-medium tabular-nums">{String(value)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+              {detail.reviews.length > 0 && (
+                <ul className="mt-4 grid gap-3">
+                  {detail.reviews.slice(0, 3).map((review) => (
+                    <li key={`${review.author}-${review.title}`} className="text-sm">
+                      <p className="font-semibold">
+                        {review.title ?? "Review"}
+                        {review.rating !== null && (
+                          <span className="ml-2 font-normal text-muted tabular-nums">
+                            {review.rating}/5 · {review.author}
+                            {review.verifiedPurchase && " · verified"}
+                          </span>
+                        )}
+                      </p>
+                      {review.body !== null && (
+                        <p className="mt-0.5 text-muted">{review.body}</p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          )}
         </div>
       )}
 

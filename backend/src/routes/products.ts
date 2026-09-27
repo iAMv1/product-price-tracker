@@ -238,6 +238,9 @@ productsRouter.get('/:id', async (req: Request, res: Response) => {
       sku: item.sku ?? null,
       optionAxis: item.optionAxis ?? null,
       options: item.options,
+      description: item.description ?? null,
+      specs: item.specs ?? null,
+      reviews: item.reviews ?? [],
       productUrl: productUrl(String(item.id)),
     });
   } catch {

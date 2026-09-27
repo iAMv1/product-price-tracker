@@ -35,6 +35,15 @@ export interface SearchHit {
   productUrl: string;
 }
 
+export interface ProductReview {
+  author: string;
+  rating: number | null;
+  title: string | null;
+  body: string | null;
+  verifiedPurchase: boolean;
+  helpfulVotes: number;
+}
+
 export interface ProductDetail {
   storeProductId: string;
   name: string;
@@ -43,6 +52,9 @@ export interface ProductDetail {
   sku: string | null;
   optionAxis: string | null;
   options: Array<{ id: string; label: string }>;
+  description: string | null;
+  specs: Record<string, unknown> | null;
+  reviews: ProductReview[];
   productUrl: string;
 }
 
@@ -55,6 +67,8 @@ export interface TrackedTarget {
   scrapeIntervalHours?: number;
   /** Pinned store SKU (null until the first observation captures it). */
   sku: string | null;
+  /** Option label as listed (null until the first success reports it). */
+  optionLabel: string | null;
   latest: { price: number; stock: string; observedAt: string } | null;
   lastScrape: {
     outcome: string;

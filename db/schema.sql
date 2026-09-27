@@ -33,6 +33,9 @@ CREATE TABLE IF NOT EXISTS tracked_products (
   -- SKU differs from the pin fails as validation_identity instead of
   -- recording a stranger's price.
   sku TEXT,
+  -- Option label as listed (e.g. "Starter bundle"): display-only, write-once,
+  -- never identity. Filled by the first successful scrape or at track time.
+  option_label TEXT,
   scrape_interval_hours INTEGER NOT NULL DEFAULT 2
     CONSTRAINT tracked_products_interval_check CHECK (scrape_interval_hours BETWEEN 1 AND 168),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

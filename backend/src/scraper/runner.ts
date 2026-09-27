@@ -2,6 +2,7 @@ import type { Queryable } from '../persistence/db.js';
 import {
   completeScrapeRun,
   createScrapeRun,
+  pinTrackedProductOptionLabel,
   pinTrackedProductSku,
   recordNonSuccessAttempt,
   recordSuccessfulAttempt,
@@ -51,6 +52,8 @@ export interface TargetOutcome {
   attempts: number;
   /** Item SKU observed on the final successful attempt (TOFU pinning). */
   observedSku?: string;
+  /** Option label observed on the final successful attempt (display only). */
+  observedOptionLabel?: string;
 }
 
 /**
@@ -111,6 +114,9 @@ export async function runTarget(
         finalOutcome: 'success',
         attempts: attempt,
         ...(result.sku !== undefined ? { observedSku: result.sku } : {}),
+        ...(result.optionLabel !== undefined
+          ? { observedOptionLabel: result.optionLabel }
+          : {}),
       };
     }
 
@@ -211,6 +217,11 @@ export async function executeScrapeRun(
     // mismatch failure (validation_identity) can surface drift.
     if (outcome.observedSku !== undefined) {
       await pinTrackedProductSku(db, target.id, outcome.observedSku);
+    }
+    // Option labels are display-only (never identity): same write-once rule
+    // so the UI names the bundle without another upstream fetch per row.
+    if (outcome.observedOptionLabel !== undefined) {
+      await pinTrackedProductOptionLabel(db, target.id, outcome.observedOptionLabel);
     }
     await input.hooks?.onTargetDone?.();
   }

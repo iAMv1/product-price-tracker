@@ -36,6 +36,8 @@ export interface ScrapeSuccess {
   stock: string;
   /** Item SKU as the store reports it (absent when the store omits it). */
   sku?: string;
+  /** Option label as listed (e.g. "Starter bundle") — display, not identity. */
+  optionLabel?: string;
   durationMs: number;
   fetchStrategy: 'http';
   parserVersion: string;

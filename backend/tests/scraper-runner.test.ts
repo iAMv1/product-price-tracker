@@ -360,11 +360,13 @@ describe('runAllTargets (SCRAPE-002)', () => {
     await runAllTargets(db, {
       triggerType: 'manual',
       targets: [rowToTarget(row)],
-      scrape: scripted([{ ...success, sku: 'SK-2626-RE' }]).scrape,
+      scrape: scripted([{ ...success, sku: 'SK-2626-RE', optionLabel: 'Instrument only' }])
+        .scrape,
       sleep: sleepRecorder().sleep,
     });
     const pinned = await getTrackedProduct(db, row.id);
     expect(pinned?.sku).toBe('SK-2626-RE');
+    expect(pinned?.option_label).toBe('Instrument only');
 
     // A later success reporting a different SKU must not move the pin.
     // (Rejecting the stranger is scrapeProduct's job — covered in
@@ -372,9 +374,11 @@ describe('runAllTargets (SCRAPE-002)', () => {
     await runAllTargets(db, {
       triggerType: 'manual',
       targets: [rowToTarget(pinned!)],
-      scrape: scripted([{ ...success, sku: 'SK-9999-XX' }]).scrape,
+      scrape: scripted([{ ...success, sku: 'SK-9999-XX', optionLabel: 'Renamed bundle' }])
+        .scrape,
       sleep: sleepRecorder().sleep,
     });
     expect((await getTrackedProduct(db, row.id))?.sku).toBe('SK-2626-RE');
+    expect((await getTrackedProduct(db, row.id))?.option_label).toBe('Instrument only');
   });
 });

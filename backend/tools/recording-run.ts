@@ -269,8 +269,22 @@ await sleep(4000);
 say('');
 say('STEP 3  -  failing response: option o99 does not exist on this product');
 // o99 cannot be tracked through the API (validation rightly refuses it), so
-// the row is seeded directly — the FAILURE itself still flows through the
-// real HTTP scrape path below, which is what the recording demonstrates.
+// the row is seeded directly — but under the store's REAL product name, read
+// live from the catalogue (never a placeholder): the FAILURE itself still
+// flows through the real HTTP scrape path below.
+const itemName: string = await fetch(`${STORE}/api/v2/items/2626`, {
+  headers: { accept: 'application/json' },
+})
+  .then((res) => {
+    if (!res.ok) throw new Error(`item fetch -> HTTP ${res.status}`);
+    return res.json() as Promise<{ name?: unknown }>;
+  })
+  .then((json) => {
+    if (typeof json.name !== 'string' || json.name === '') {
+      throw new Error('item JSON carries no name');
+    }
+    return json.name;
+  });
 const badIdentity = {
   storeProductId: '2626',
   selectedOption: 'o99',
@@ -279,7 +293,7 @@ const badIdentity = {
 let badId: string;
 try {
   badId = (
-    await createTrackedProduct(db, { ...badIdentity, productName: 'demo item 2626' })
+    await createTrackedProduct(db, { ...badIdentity, productName: itemName })
   ).id;
 } catch (error) {
   if (!isUniqueViolation(error)) throw error;

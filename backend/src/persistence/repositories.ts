@@ -17,6 +17,8 @@ export interface TrackedProductRow {
   scrape_interval_hours: number;
   /** Pinned item SKU (NULL until trust-on-first-use captures it). */
   sku: string | null;
+  /** Option label as listed (NULL until first success reports it). */
+  option_label: string | null;
   /** Present when loaded through getTrackedProduct: seeded demo protection. */
   is_demo_seeded?: boolean;
 }
@@ -103,7 +105,7 @@ export async function createTrackedProduct(
   const result = await db.query(
     `INSERT INTO tracked_products (id, store_product_id, product_name, selected_option, product_url, scrape_interval_hours)
      VALUES ($1, $2, $3, $4, $5, $6)
-     RETURNING id, store_product_id, product_name, selected_option, product_url, is_active, scrape_interval_hours, sku`,
+     RETURNING id, store_product_id, product_name, selected_option, product_url, is_active, scrape_interval_hours, sku, option_label`,
     [randomUUID(), input.storeProductId, input.productName, input.selectedOption, input.productUrl, interval],
   );
   return one<TrackedProductRow>(result);
@@ -144,7 +146,7 @@ export async function listActiveTrackedProducts(
   db: Queryable,
 ): Promise<TrackedProductRow[]> {
   const result = await db.query(
-    `SELECT id, store_product_id, product_name, selected_option, product_url, is_active, scrape_interval_hours, sku
+    `SELECT id, store_product_id, product_name, selected_option, product_url, is_active, scrape_interval_hours, sku, option_label
      FROM tracked_products WHERE is_active = TRUE ORDER BY created_at`,
   );
   return rows<TrackedProductRow>(result);
@@ -299,7 +301,7 @@ export async function reactivateTrackedByIdentity(
      WHERE store_product_id = $1 AND selected_option = $2 AND product_url = $3
        AND is_active = FALSE
      RETURNING id, store_product_id, product_name, selected_option, product_url,
-               is_active, scrape_interval_hours, sku`,
+               is_active, scrape_interval_hours, sku, option_label`,
     [identity.storeProductId, identity.selectedOption, identity.productUrl],
   );
   const [row] = rows<TrackedProductRow>(result);
@@ -320,6 +322,23 @@ export async function pinTrackedProductSku(
     `UPDATE tracked_products SET sku = $2, updated_at = now()
      WHERE id = $1 AND sku IS NULL`,
     [trackedProductId, sku],
+  );
+}
+
+/**
+ * Write-once option label (display only, never identity). Same rule as the
+ * SKU pin: fills NULL, never rewrites — a renamed bundle keeps its
+ * first-seen label instead of churning the UI.
+ */
+export async function pinTrackedProductOptionLabel(
+  db: Queryable,
+  trackedProductId: string,
+  optionLabel: string,
+): Promise<void> {
+  await db.query(
+    `UPDATE tracked_products SET option_label = $2, updated_at = now()
+     WHERE id = $1 AND option_label IS NULL`,
+    [trackedProductId, optionLabel],
   );
 }
 
@@ -408,7 +427,7 @@ export async function getTrackedProduct(
 ): Promise<TrackedProductRow | null> {
   const result = await db.query(
     `SELECT id, store_product_id, product_name, selected_option, product_url, is_active,
-            scrape_interval_hours, is_demo_seeded, sku
+            scrape_interval_hours, is_demo_seeded, sku, option_label
      FROM tracked_products WHERE id = $1`,
     [id],
   );
@@ -433,6 +452,7 @@ export async function getTrackedProduct(
     is_active: row['is_active'] === true,
     scrape_interval_hours: interval,
     sku: typeof row['sku'] === 'string' ? row['sku'] : null,
+    option_label: typeof row['option_label'] === 'string' ? row['option_label'] : null,
     is_demo_seeded: row['is_demo_seeded'] === true,
   };
 }

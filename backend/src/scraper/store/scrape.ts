@@ -203,5 +203,6 @@ async function runScrape(
     parserVersion: PARSER_VERSION,
   };
   if (item.sku !== undefined) success.sku = item.sku;
+  success.optionLabel = matched.option.label;
   return success;
 }

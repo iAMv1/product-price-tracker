@@ -135,7 +135,8 @@ export function TrackedProductRow({
               {target.productName}
             </button>
             <p className="mt-0.5 truncate text-[13px] text-muted tabular-nums">
-              {target.selectedOption} · ID {target.storeProductId}
+              {target.optionLabel ?? target.selectedOption} · {target.selectedOption} · ID{" "}
+              {target.storeProductId}
             </p>
             <p className="mt-1 text-[13px] text-muted">
               Last scraped:{" "}

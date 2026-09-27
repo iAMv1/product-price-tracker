@@ -13,6 +13,15 @@ export interface StoreOption {
   label: string;
 }
 
+export interface StoreReview {
+  author: string;
+  rating: number | null;
+  title: string | null;
+  body: string | null;
+  verifiedPurchase: boolean;
+  helpfulVotes: number;
+}
+
 export interface StoreItem {
   id: number;
   slug: string;
@@ -22,6 +31,10 @@ export interface StoreItem {
   sku?: string;
   optionAxis?: string;
   options: StoreOption[];
+  description?: string;
+  /** Free-form spec map (warranty, material, colour, …) — rendered as-is. */
+  specs?: Record<string, unknown>;
+  reviews?: StoreReview[];
 }
 
 export interface StoreListing {
@@ -267,6 +280,28 @@ export function parseStoreItem(json: unknown): StoreItem {
   if (asString(json['sku']) !== null) item.sku = json['sku'] as string;
   if (asString(json['optionAxis']) !== null)
     item.optionAxis = json['optionAxis'] as string;
+  if (asString(json['description']) !== null)
+    item.description = json['description'] as string;
+  // Specs and reviews are display-only: parsed tolerantly, never validated.
+  // A malformed entry is skipped, not fatal — identity/price never depend
+  // on them.
+  if (isRecord(json['specs'])) item.specs = json['specs'];
+  if (Array.isArray(json['reviews'])) {
+    const reviews: StoreReview[] = [];
+    for (const entry of json['reviews']) {
+      if (!isRecord(entry)) continue;
+      reviews.push({
+        author: asString(entry['author']) ?? 'Anonymous',
+        rating: typeof entry['rating'] === 'number' ? entry['rating'] : null,
+        title: asString(entry['title']),
+        body: asString(entry['body']),
+        verifiedPurchase: entry['verifiedPurchase'] === true,
+        helpfulVotes:
+          typeof entry['helpfulVotes'] === 'number' ? entry['helpfulVotes'] : 0,
+      });
+    }
+    item.reviews = reviews;
+  }
   return item;
 }
 

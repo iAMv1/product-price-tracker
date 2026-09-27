@@ -5,6 +5,7 @@ import {
   listActiveTrackedProducts,
   isUniqueViolation,
   parseIntervalHours,
+  pinTrackedProductOptionLabel,
   reactivateTrackedByIdentity,
 } from '../persistence/repositories.js';
 import { rowToTarget, runAllTargets } from '../scraper/runner.js';
@@ -55,6 +56,7 @@ byProductRouter.post('/by-product', async (req: Request, res: Response) => {
     return;
   }
   let productName: string;
+  const optionLabels = new Map<string, string>();
   try {
     const item = parseStoreItem(fetched.json);
     for (const opt of unique) {
@@ -66,6 +68,7 @@ byProductRouter.post('/by-product', async (req: Request, res: Response) => {
         });
         return;
       }
+      optionLabels.set(opt, matched.option.label);
     }
     productName = item.name;
   } catch {
@@ -85,17 +88,20 @@ byProductRouter.post('/by-product', async (req: Request, res: Response) => {
   const targets = [];
   for (const opt of unique) {
     try {
-      targets.push(
-        rowToTarget(
-          await createTrackedProduct(db, {
-            storeProductId,
-            productName,
-            selectedOption: opt,
-            productUrl: url,
-            scrapeIntervalHours: interval,
-          }),
-        ),
-      );
+      const created = await createTrackedProduct(db, {
+        storeProductId,
+        productName,
+        selectedOption: opt,
+        productUrl: url,
+        scrapeIntervalHours: interval,
+      });
+      // Labels are known from validation above: pin write-once at birth.
+      const label = optionLabels.get(opt);
+      if (label !== undefined && created.option_label == null) {
+        await pinTrackedProductOptionLabel(db, created.id, label);
+        created.option_label = label;
+      }
+      targets.push(rowToTarget(created));
     } catch (error) {
       // Only a uniqueness collision means "row exists" — anything else
       // (outage, constraint bug) must propagate instead of being swallowed.
