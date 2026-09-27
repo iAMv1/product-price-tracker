@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { ThemeToggle } from "../ui/theme-toggle";
 import { TooltipGroup } from "../ui/tooltip-group";
 import { motion } from "motion/react";
+import { useReducedMotion } from "../../hooks/useReducedMotion";
 import { cn } from "../../lib/cn";
 
 export type AppSection = "dashboard" | "search" | "alerts" | "settings";
@@ -9,6 +11,12 @@ export interface Crumb {
   label: string;
   href?: string;
 }
+
+const SIDEBAR_KEY = "ppt-sidebar-expanded";
+// Rail widths: expanded fits icon + label; collapsed centers a 20px icon
+// with breathing room. No bounce — an overshooting rail would shove content.
+const EXPANDED = 248;
+const COLLAPSED = 76;
 
 const LINKS: Array<{
   id: AppSection;
@@ -82,15 +90,72 @@ export function AppShell({
   actions?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const reduce = useReducedMotion();
+  // Collapsed rail persists across visits; a fresh visitor gets the full
+  // labeled sidebar so navigation never starts as a mystery-meat icon strip.
+  const [expanded, setExpanded] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem(SIDEBAR_KEY) !== "0";
+    } catch {
+      return true;
+    }
+  });
+  function toggleSidebar() {
+    setExpanded((v) => {
+      try {
+        window.localStorage.setItem(SIDEBAR_KEY, v ? "0" : "1");
+      } catch {
+        // Private mode: the toggle still works for this visit.
+      }
+      return !v;
+    });
+  }
+
   return (
-    <div className="app-texture min-h-screen bg-app text-foreground lg:grid lg:grid-cols-[248px_minmax(0,1fr)]">
-      <aside className="hidden border-r border-border bg-card lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
-        <a href="#/" className="flex items-center gap-2.5 px-5 pt-6 pb-5 outline-hidden focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-primary">
-          <span aria-hidden className="grid size-9 place-items-center rounded-xl bg-foreground text-sm font-bold text-background">
-            PT
-          </span>
-          <span className="text-[17px] font-semibold tracking-tight">PriceTracker</span>
-        </a>
+    <div className="app-texture min-h-screen bg-app text-foreground lg:grid lg:grid-cols-[auto_minmax(0,1fr)]">
+      <motion.aside
+        initial={false}
+        animate={{ width: expanded ? EXPANDED : COLLAPSED }}
+        transition={reduce ? { duration: 0 } : { type: "spring", visualDuration: 0.3, bounce: 0 }}
+        className="hidden overflow-hidden border-r border-border bg-card lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col"
+      >
+        <div className={cn("flex items-center gap-2 px-5 pt-6 pb-5", !expanded && "justify-center px-0")}>
+          {expanded && (
+            <a
+              href="#/"
+              aria-label="PriceTracker home"
+              className="flex min-w-0 flex-1 items-center gap-2.5 outline-hidden focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-primary"
+            >
+              <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-xl bg-foreground text-sm font-bold text-background">
+                PT
+              </span>
+              <span className="truncate text-[17px] font-semibold tracking-tight whitespace-nowrap">
+                PriceTracker
+              </span>
+            </a>
+          )}
+          <button
+            type="button"
+            aria-expanded={expanded}
+            aria-label={expanded ? "Collapse sidebar" : "Expand sidebar"}
+            onClick={toggleSidebar}
+            className="grid size-9 shrink-0 place-items-center rounded-xl text-muted outline-hidden transition-colors hover:bg-surface hover:text-foreground focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-primary"
+          >
+            <svg
+              viewBox="0 0 16 16"
+              aria-hidden
+              className={cn("size-5 transition-transform duration-200 ease-out", !expanded && "-scale-x-100")}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="2.25" y="2.75" width="11.5" height="10.5" rx="2" />
+              <path d="M9.75 2.75v10.5" />
+            </svg>
+          </button>
+        </div>
         <nav aria-label="Application" className="flex flex-col gap-1 px-3">
           {LINKS.map((link) => {
             const selected = link.id === active;
@@ -99,8 +164,11 @@ export function AppShell({
                 key={link.id}
                 href={link.href}
                 aria-current={selected ? "page" : undefined}
+                aria-label={link.label}
+                title={expanded ? undefined : link.label}
                 className={cn(
-                  "relative flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold outline-hidden transition-colors focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-primary",
+                  "relative flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold whitespace-nowrap outline-hidden transition-colors focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-primary",
+                  expanded ? "" : "justify-center px-0",
                   selected
                     ? "text-foreground"
                     : "text-muted hover:bg-surface hover:text-foreground",
@@ -118,33 +186,45 @@ export function AppShell({
                 )}
                 <span className="relative flex items-center gap-3">
                   {link.icon("size-5 shrink-0")}
-                  {link.label}
+                  <span
+                    aria-hidden={!expanded}
+                    className={cn(
+                      "transition-[opacity,filter] ease-out",
+                      expanded
+                        ? "opacity-100 blur-[0px] duration-200"
+                        : "pointer-events-none absolute opacity-0 blur-[4px] duration-100",
+                    )}
+                  >
+                    {link.label}
+                  </span>
                 </span>
               </a>
             );
           })}
         </nav>
-        <div className="mt-auto border-t border-border px-5 py-4">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-[13px] font-medium text-muted">Appearance</p>
-            <TooltipGroup>
-              <ThemeToggle />
-            </TooltipGroup>
+        {expanded && (
+          <div className="mt-auto border-t border-border px-5 py-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[13px] font-medium text-muted">Appearance</p>
+              <TooltipGroup>
+                <ThemeToggle />
+              </TooltipGroup>
+            </div>
+            <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-muted">
+              <a href="#/docs" className="rounded py-1 hover:text-foreground">Docs</a>
+              <a href="#/changelog" className="rounded py-1 hover:text-foreground">Changelog</a>
+              <a
+                href="https://github.com/iAMv1/product-price-tracker"
+                target="_blank"
+                rel="noreferrer"
+                className="rounded py-1 hover:text-foreground"
+              >
+                Built by iAMv1
+              </a>
+            </p>
           </div>
-          <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-muted">
-            <a href="#/docs" className="rounded py-1 hover:text-foreground">Docs</a>
-            <a href="#/changelog" className="rounded py-1 hover:text-foreground">Changelog</a>
-            <a
-              href="https://github.com/iAMv1/product-price-tracker"
-              target="_blank"
-              rel="noreferrer"
-              className="rounded py-1 hover:text-foreground"
-            >
-              Built by iAMv1
-            </a>
-          </p>
-        </div>
-      </aside>
+        )}
+      </motion.aside>
 
       <div className="flex min-h-screen min-w-0 flex-col">
         <header className="sticky top-0 z-20 border-b border-border bg-card/95 backdrop-blur lg:hidden">

@@ -11,6 +11,7 @@ import {
 } from "../services/api";
 import { ThemeToggle } from "../components/ui/theme-toggle";
 import { TooltipGroup } from "../components/ui/tooltip-group";
+import { OverflowTabs } from "../components/ui/overflow-tabs";
 import { Countdown } from "../components/ui/countdown";
 import { Odometer } from "../components/ui/odometer";
 import { RelativeTime } from "../components/ui/relative-time";
@@ -89,7 +90,7 @@ function alertLabel(a: AlertItem): string {
 
 /** Hero right column: layered cards fed by the live API (empty => hidden). */
 function HeroProof({ targets }: { targets: TrackedTarget[] }) {
-  const reduce = useReducedMotion();
+  const [tab, setTab] = useState("live");
   const [runs, setRuns] = useState<RunEntry[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   useEffect(() => {
@@ -104,21 +105,19 @@ function HeroProof({ targets }: { targets: TrackedTarget[] }) {
   const lastRunCounts = lastRun === undefined ? "" : runCounts(lastRun);
   const firstAlert = alerts[0];
   if (t === undefined) return null;
-  const rise = (delay: number) =>
-    reduce
-      ? {}
-      : {
-          initial: { opacity: 0, y: 14 },
-          animate: { opacity: 1, y: 0 },
-          transition: { duration: 0.5, delay, ease: [0.23, 1, 0.32, 1] as const },
-        };
 
   return (
     <div className="relative mx-auto w-full max-w-md">
-      <motion.div
-        {...rise(0.15)}
-        className="rounded-2xl border border-border bg-card p-5 shadow-raised"
-      >
+      <OverflowTabs
+        label="Live proof"
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          {
+            id: "live",
+            label: "Live price",
+            content: (
+              <div className="rounded-2xl border border-border bg-card p-5 shadow-raised">
         <div className="flex items-center justify-between">
           <p className="text-xs font-semibold tracking-[0.1em] text-muted uppercase">
             Live price
@@ -150,21 +149,25 @@ function HeroProof({ targets }: { targets: TrackedTarget[] }) {
             awaiting first scrape
           </p>
         )}
-      </motion.div>
-
-      {/* The one number on the page that moves on its own, and it moves for a
-          real reason: the cron cadence is a real boundary. */}
-      <motion.div
-        {...rise(0.24)}
-        className="mt-4 rounded-2xl border border-dashed border-border bg-card p-4 shadow-raised"
-      >
-        <Countdown />
-      </motion.div>
-
-      <motion.div
-        {...rise(0.3)}
-        className="mt-4 rounded-2xl border border-border bg-card p-4 shadow-raised"
-      >
+      </div>
+            ),
+          },
+          {
+            id: "next",
+            label: "Next check",
+            content: (
+              <div className="rounded-2xl border border-dashed border-border bg-card p-4 shadow-raised">
+                {/* The one number on the page that moves on its own, and it
+                    moves for a real reason: the cron cadence is a real boundary. */}
+                <Countdown />
+              </div>
+            ),
+          },
+          {
+            id: "run",
+            label: "Last run",
+            content: (
+              <div className="rounded-2xl border border-border bg-card p-4 shadow-raised">
         <p className="text-xs font-semibold tracking-[0.1em] text-muted uppercase">
           Last run
         </p>
@@ -182,11 +185,13 @@ function HeroProof({ targets }: { targets: TrackedTarget[] }) {
         ) : (
           <p className="mt-1.5 text-sm text-muted">no runs recorded yet</p>
         )}
-      </motion.div>
-
+      </div>
+            ),
+          },
+        ]}
+      />
       {firstAlert && (
-        <motion.div
-          {...rise(0.45)}
+        <p
           className={`mt-4 inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[13px] font-medium ${
             firstAlert.type === "price_drop" || firstAlert.type === "back_in_stock"
               ? "border-success/30 bg-success/10 text-success"
@@ -195,7 +200,7 @@ function HeroProof({ targets }: { targets: TrackedTarget[] }) {
         >
           <span aria-hidden className="size-1.5 rounded-full bg-current" />
           {alertLabel(firstAlert)} · {firstAlert.productName}
-        </motion.div>
+        </p>
       )}
     </div>
   );

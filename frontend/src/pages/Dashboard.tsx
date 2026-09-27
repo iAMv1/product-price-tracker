@@ -1,16 +1,14 @@
 import { useState } from "react";
 import { AppShell } from "../components/app/AppShell";
 import { CountUp } from "../components/app/CountUp";
+import { RunTimeline } from "../components/app/RunTimeline";
 import { ExportDialog } from "../components/app/ExportDialog";
 import { Card, Eyebrow } from "../components/app/primitives";
 import { PrimaryButton, SecondaryButton } from "../components/app/controls";
-import { OutcomeBadge } from "../components/app/status";
 import { TrackedProductRow } from "../components/app/TrackedProductRow";
 import { TargetCardSkeleton } from "../components/ui/skeleton-loader";
 import { Countdown } from "../components/ui/countdown";
 import { LiveIndicator, useWorkIndicator } from "../components/ui/live-indicator";
-import { RelativeTime } from "../components/ui/relative-time";
-import { runCounts } from "../lib/runStatus";
 import { useDashboardData } from "../hooks/useDashboardData";
 import { goHash } from "../router";
 import type { HealthResponse } from "../services/api";
@@ -186,40 +184,11 @@ export default function Dashboard() {
 
       <section aria-label="Recent runs" className="mt-10">
         <h2 className="text-lg font-semibold tracking-tight">Recent runs</h2>
-        {runs.length === 0 ? (
-          <p className="mt-2 text-sm text-muted">No runs loaded yet.</p>
+        {!feedOk.runs && runs.length === 0 ? (
+          <p className="mt-2 text-sm text-muted">Run history unavailable.</p>
         ) : (
-          <Card className="mt-3 p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-sm">
-                <thead>
-                  <tr className="text-left text-[12px] font-semibold tracking-[0.08em] text-muted uppercase">
-                    <th scope="col" className="px-4 py-3">Started</th>
-                    <th scope="col" className="px-4 py-3">Trigger</th>
-                    <th scope="col" className="px-4 py-3">Status</th>
-                    <th scope="col" className="px-4 py-3">Targets</th>
-                    <th scope="col" className="px-4 py-3">Result</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {runs.slice(0, 5).map((run) => (
-                    <tr key={run.id} className="border-t border-border first:border-t-0">
-                      <td className="px-4 py-3 text-muted">
-                        <RelativeTime date={run.startedAt} />
-                      </td>
-                      <td className="px-4 py-3 capitalize">{run.triggerType}</td>
-                      <td className="px-4 py-3">
-                        <OutcomeBadge outcome={run.status} />
-                      </td>
-                      <td className="px-4 py-3 tabular-nums">{run.targetCount}</td>
-                      <td className="px-4 py-3 text-muted tabular-nums">
-                        {runCounts(run) || "no attempts recorded"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <Card className="mt-3">
+            <RunTimeline runs={runs} />
           </Card>
         )}
       </section>
