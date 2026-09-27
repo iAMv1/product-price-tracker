@@ -432,6 +432,9 @@ describe('CSV export (EXPORT-001)', () => {
     );
     expect(lines.length).toBe(2);
     expect(lines[1]).toMatch(/^2626,Redwick Ukulele Nano,o1,\S+,62549,164,success,1$/);
+    // Timestamps are ISO 8601 UTC — never locale strings, never epoch millis.
+    const timestamp = lines[1]?.split(",")[3] ?? "";
+    expect(timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/);
   });
 });
 

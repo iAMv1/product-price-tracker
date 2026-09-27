@@ -50,34 +50,40 @@ function Reveal({
 
 function ProofTicker({ targets }: { targets: TrackedTarget[] }) {
   if (targets.length === 0) return null;
-  const items = [...targets, ...targets];
+  // Tripled so the strip is wider than any viewport: the loop never shows
+  // a gap. Copies past the first are hidden from assistive tech.
+  const items = [...targets, ...targets, ...targets];
   return (
     <section
-      className="relative z-0 flex overflow-hidden border-y border-border bg-card"
+      className="overflow-hidden border-y border-border bg-card"
       aria-label="Live prices"
     >
-      <div className="relative z-10 flex shrink-0 items-center gap-2 border-r border-border bg-card px-4 text-xs font-semibold tracking-[0.1em] text-foreground uppercase sm:px-5">
-        <span aria-hidden className="size-1.5 rounded-full bg-foreground motion-safe:animate-pulse" />
-        Live
-      </div>
-      <div className="ticker-track flex w-max items-center gap-10 px-5 py-3">
+      <div className="ticker-track-slow flex w-max items-center px-8 py-4 hover:[animation-play-state:paused]">
         {items.map((t, i) => (
           <span
             key={`${t.id}-${i}`}
             aria-hidden={i >= targets.length || undefined}
-            className="flex items-center gap-2 text-sm tabular-nums"
+            className="flex items-baseline gap-2.5 pr-16 text-base tabular-nums"
           >
             <span className="font-semibold text-foreground">{t.productName}</span>
-            <span className="text-muted">{t.selectedOption}</span>
+            <span className="text-sm text-muted">{t.selectedOption}</span>
             {t.latest ? (
               <span className="font-semibold text-foreground">{formatRupees(t.latest.price)}</span>
             ) : (
               <span className="text-muted">awaiting first scrape</span>
             )}
-            <span aria-hidden className="text-muted">●</span>
+            <span aria-hidden className="ml-13 inline-block size-1 rounded-full bg-border" />
           </span>
         ))}
       </div>
+      <p className="sr-only">
+        Live prices:{" "}
+        {targets
+          .map((t) =>
+            t.latest ? `${t.productName} ${formatRupees(t.latest.price)}` : t.productName,
+          )
+          .join(", ")}
+      </p>
     </section>
   );
 }

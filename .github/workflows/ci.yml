@@ -71,3 +71,15 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: npx -y vercel@57 deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+  # Post-deploy proof: the shipped URLs answer, not just the build.
+  # Read-only by design — scripts/smoke-production.mjs never mutates state.
+  smoke:
+    needs: [deploy]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node scripts/smoke-production.mjs

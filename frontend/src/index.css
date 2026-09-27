@@ -135,8 +135,19 @@ body {
 .ticker-track {
   animation: ticker-scroll 36s linear infinite;
 }
+/* Proof ticker: slower than UI-animation pacing because it is ambient, not
+   signal — and it pauses on hover so a price can actually be read. */
+.ticker-track-slow {
+  animation: ticker-scroll 64s linear infinite;
+}
+.ticker-track-slow:hover {
+  animation-play-state: paused;
+}
 @media (prefers-reduced-motion: reduce) {
   .ticker-track {
+    animation: none;
+  }
+  .ticker-track-slow {
     animation: none;
   }
 }

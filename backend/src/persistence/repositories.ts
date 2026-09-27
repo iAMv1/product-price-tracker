@@ -492,31 +492,35 @@ export interface LatestAttempt {
 
 /**
  * Latest attempt per target in ONE query (scheduler + alerts batch path).
- * Grouped in JS: keeps pg-mem compatibility (no DISTINCT ON / window fns).
+ *
+ * Anti-join, not JS dedupe: the row with no newer sibling wins. Newer means
+ * greater attempted_at, ties broken by attempt_number. Same-target scrapes
+ * run serially (single-flight lease + per-target endpoints), so identical
+ * (timestamp, number) ties cannot occur — no third tiebreak needed.
+ * Plain joins + comparisons only: no DISTINCT ON / window functions, so the
+ * pg-mem test engine runs the same SQL as production Postgres.
  */
 export async function getLatestAttempts(db: Queryable): Promise<LatestAttempt[]> {
   const result = await db.query(
-    `SELECT tracked_product_id, attempted_at, outcome, error_code
-     FROM scrape_attempts ORDER BY attempted_at DESC, attempt_number DESC`,
+    `SELECT a.tracked_product_id, a.attempted_at, a.outcome, a.error_code
+     FROM scrape_attempts a
+     LEFT JOIN scrape_attempts b
+       ON b.tracked_product_id = a.tracked_product_id
+       AND (b.attempted_at > a.attempted_at
+         OR (b.attempted_at = a.attempted_at AND b.attempt_number > a.attempt_number))
+     WHERE b.tracked_product_id IS NULL`,
   );
-  const seen = new Set<string>();
-  const out: LatestAttempt[] = [];
-  for (const row of rows<{
+  return rows<{
     tracked_product_id: string;
     attempted_at: string;
     outcome: string;
     error_code: string | null;
-  }>(result)) {
-    if (seen.has(row.tracked_product_id)) continue;
-    seen.add(row.tracked_product_id);
-    out.push({
-      trackedProductId: row.tracked_product_id,
-      attemptedAt: row.attempted_at,
-      outcome: row.outcome,
-      errorCode: row.error_code,
-    });
-  }
-  return out;
+  }>(result).map((row) => ({
+    trackedProductId: row.tracked_product_id,
+    attemptedAt: row.attempted_at,
+    outcome: row.outcome,
+    errorCode: row.error_code,
+  }));
 }
 
 export interface RecentHistory {
