@@ -108,7 +108,7 @@ export default function Dashboard() {
           : stats.map((stat) => (
               <Card key={stat.label} className="p-4">
                 <Eyebrow>{stat.label}</Eyebrow>
-                <p className="mt-2 text-[28px] leading-none font-semibold tabular-nums">
+                <p className="mt-2 text-[28px] leading-none font-semibold tracking-tight tabular-nums">
                   {stat.value === null ? (
                     <span aria-label={`${stat.label} unavailable`}>—</span>
                   ) : (

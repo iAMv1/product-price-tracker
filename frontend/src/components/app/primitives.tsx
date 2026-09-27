@@ -1,7 +1,6 @@
 import { useId } from "react";
 import { cn } from "../../lib/cn";
 import { productInitials } from "../../lib/ids";
-
 /** Product monogram tile. The store API supplies no images, so initials stand in. */
 export function ProductMark({
   name,
@@ -46,11 +45,24 @@ export function Card({
   );
 }
 
-export function Eyebrow({ children }: { children: React.ReactNode }) {
+export function Eyebrow({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <p className="text-[12px] font-semibold tracking-[0.12em] text-muted uppercase">
+    // h2, not p: every eyebrow labels a section, so the outline stays
+    // h1 (page) → h2 (sections) with no skips.
+    <h2
+      className={cn(
+        "text-[11px] font-semibold tracking-[0.12em] text-muted uppercase",
+        className,
+      )}
+    >
       {children}
-    </p>
+    </h2>
   );
 }
 

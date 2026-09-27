@@ -256,7 +256,7 @@ export default function Search() {
                   >
                     <ProductMark name={hit.name} />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[15px] font-semibold text-foreground">
+                      <span className="block truncate text-base font-semibold text-foreground">
                         {hit.name}
                       </span>
                       <span className="mt-0.5 block truncate text-[13px] text-muted tabular-nums">

@@ -74,7 +74,7 @@ export function SectionTitle({
 }) {
   return (
     <div className="flex items-center gap-3">
-      <h2 className="font-data text-[11px] font-medium tracking-[0.14em] text-muted uppercase">
+      <h2 className="font-data text-[11px] font-medium tracking-[0.12em] text-muted uppercase">
         {children}
       </h2>
       <span aria-hidden className="h-px flex-1 bg-border" />

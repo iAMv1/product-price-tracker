@@ -69,7 +69,7 @@ export function TrackedProductRow({
             <button
               type="button"
               onClick={() => setQuickOpen(true)}
-              className="block max-w-full truncate text-left text-[15px] font-semibold text-foreground outline-hidden hover:text-primary hover:underline hover:decoration-primary/40 hover:underline-offset-4 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-primary"
+              className="block max-w-full truncate text-left text-base font-semibold text-foreground outline-hidden hover:text-primary hover:underline hover:decoration-primary/40 hover:underline-offset-4 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               {target.productName}
             </button>
@@ -85,7 +85,7 @@ export function TrackedProductRow({
 
         <div className="flex flex-wrap items-center gap-x-5 gap-y-3 lg:ml-auto">
           <div className="min-w-[120px]">
-            <p className="text-lg font-semibold tabular-nums">
+            <p className="text-xl font-semibold tracking-tight tabular-nums">
               {target.latest ? formatRupees(target.latest.price) : "No price yet"}
             </p>
             {change !== null && (
