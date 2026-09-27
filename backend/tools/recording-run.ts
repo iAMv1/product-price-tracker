@@ -222,22 +222,10 @@ say('   1. real store scrapes through the real runner, per-attempt output');
 say('   2. a transient 503 retried with backoff inside ONE persisted chain');
 say('   3. a slow upstream (timeout) retried the same way, same chain shape');
 say('   4. history and CSV never gain invented values');
+say('');
+say('PHASE A follows: all scrapes run here on this terminal — watch the');
+say('[http] request lines, [store] upstream lines, run IDs, and attempt chains.');
 await sleep(6000);
-
-flip('browser');
-say('(browser) local dashboard - same DB the terminal writes');
-const browser = await chromium.launch({ headless: false, slowMo: 350, args: ['--start-maximized'] });
-const page = await browser.newPage({ viewport: null });
-await page.goto(`${LOCAL_APP}/#/app`, { waitUntil: 'networkidle', timeout: 45000 }).catch(() => {});
-await sleep(14000);
-say('(browser) real store page - the price loads asynchronously');
-try {
-  await page.goto(`${STORE}/item/2626`, { waitUntil: 'domcontentloaded', timeout: 20000 });
-  await page.waitForTimeout(1200);
-} catch {
-  /* page slowness is handled by the HTTP path below */
-}
-await sleep(5000);
 
 flip('terminal');
 say('STEP 2  -  live scrapes through the LOCAL API (watch the run IDs)');
@@ -313,9 +301,24 @@ const badSummary = await api<ScrapeSummary>(`/api/tracked-products/${badId}/scra
 say(`run ${badSummary.runId}: succeeded=${badSummary.succeeded} failed=${badSummary.failed}`);
 await printChain('2626/o99', badId);
 say('  nothing invented, nothing hidden: option_not_found is terminal -> one failed row, price and stock left empty');
-await sleep(6000);
+await sleep(4000);
 
 flip('browser');
+say('PHASE B  -  the headed browser opens now (it appears over this terminal).');
+say('Same DB, same run IDs: dashboard, real store page, scrape log, CSV, history.');
+const browser = await chromium.launch({ headless: false, slowMo: 350, args: ['--start-maximized'] });
+const page = await browser.newPage({ viewport: null });
+say('(browser) local dashboard - same DB the terminal just wrote');
+await page.goto(`${LOCAL_APP}/#/app`, { waitUntil: 'networkidle', timeout: 45000 }).catch(() => {});
+await sleep(12000);
+say('(browser) real store page - the price loads asynchronously');
+try {
+  await page.goto(`${STORE}/item/2626`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  await page.waitForTimeout(1200);
+} catch {
+  /* page slowness is handled by the HTTP path below */
+}
+await sleep(5000);
 say('(browser) product scrape log - THE run IDs printed above, retried rows keep price/stock empty');
 await page.goto(`${LOCAL_APP}/#/tracked/${trackedIds[0]}?tab=log`, {
   waitUntil: 'networkidle',
@@ -337,6 +340,9 @@ await page.goto(`${LOCAL_APP}/#/tracked/${trackedIds[1]}?tab=history`, {
   timeout: 45000,
 }).catch(() => {});
 await sleep(10000);
+
+say('(browser) done - closing the browser, back to this terminal for the recap');
+await browser.close();
 
 flip('terminal');
 say('STEP 5  -  reliability recap');
@@ -365,7 +371,6 @@ const elapsed = Date.now() - started;
 const pad = Math.min(195000 - elapsed, 230000 - elapsed);
 if (pad > 0) await sleep(pad);
 
-await browser.close();
 vite.kill('SIGINT');
 await new Promise<void>((resolve) => server.close(() => resolve()));
 await closePool();
