@@ -42,6 +42,7 @@ export interface ListingsPage {
 }
 
 import { errMsg, isRecord } from '../../http/guards.js';
+import { cliLog } from '../../http/cliLog.js';
 import { realSleep, type Sleep } from '../retry.js';
 
 /** Network/HTTP failure classified for the runner. Never throws. */
@@ -117,13 +118,27 @@ export async function fetchJson(
   what: string,
   fetchImpl: FetchImpl = fetch,
 ): Promise<{ ok: true; json: unknown } | { ok: false; failure: FetchFailure }> {  let response: Response;
+  const fetchStarted = Date.now();
+  // Host + path only: the store ignores query strings and secrets never
+  // belong in a recorded line.
+  const shortUrl = (() => {
+    try {
+      const parsed = new URL(url);
+      return `${parsed.host}${parsed.pathname}`;
+    } catch {
+      return what;
+    }
+  })();
   try {
     response = await fetchImpl(url, {
       headers: { accept: 'application/json' },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
+    cliLog(`[store] GET ${shortUrl} -> HTTP ${response.status} ${Date.now() - fetchStarted}ms (${what})`);
   } catch (error) {
-    return { ok: false, failure: classifyFetchError(error, what) };
+    const failure = classifyFetchError(error, what);
+    cliLog(`[store] GET ${shortUrl} -> ${failure.errorCode} ${Date.now() - fetchStarted}ms (${what})`);
+    return { ok: false, failure };
   }
   const statusFailure = classifyHttpStatus(response.status, what);
   if (statusFailure !== null) return { ok: false, failure: statusFailure };

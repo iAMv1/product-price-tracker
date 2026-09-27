@@ -3,6 +3,7 @@ import express, { type ErrorRequestHandler, type RequestHandler } from 'express'
 import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
 import { env } from './config/env.js';
+import { cliLogEnabled } from './http/cliLog.js';
 import type { AppDeps } from './http/deps.js';
 import { alertsRouter } from './routes/alerts.js';
 import { byProductRouter } from './routes/byproduct.js';
@@ -105,6 +106,20 @@ export function createApp(deps: AppDeps = {}) {
 
   app.disable('x-powered-by');
   app.use(helmet());
+  // Recording-only access log: every local API call the cut triggers is
+  // visible on the terminal as it happens (method, path, status, wall time).
+  // Gated at startup so the middleware costs nothing when disabled.
+  if (cliLogEnabled()) {
+    app.use((req, res, next) => {
+      const startedAt = Date.now();
+      res.on('finish', () => {
+        console.log(
+          `[http] ${req.method} ${req.path} -> ${res.statusCode} ${Date.now() - startedAt}ms`,
+        );
+      });
+      next();
+    });
+  }
   // `*` must mean "any origin" (string) — as an array entry it silently
   // matches nothing and fail-closes CORS while looking configured.
   const corsOrigin = env.corsOrigins.includes('*') ? '*' : env.corsOrigins;

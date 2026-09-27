@@ -113,6 +113,10 @@ const db = pool;
 // One wrapper for the whole cut: re-armed per target below, so the cut is
 // deterministic whether seeding scrapes (fresh DB) burn the initial arming
 // or dedupe (existing DB) leaves it intact.
+// CLI request log: the recording must SHOW requests being sent, not just
+// summaries. PPT_HTTP_LOG=1 turns on access + upstream fetch lines below.
+// Default off: production and tests stay quiet.
+process.env['PPT_HTTP_LOG'] ??= '1';
 const faultArmedScrape = withDemoFault(scrapeProduct);
 const app = createApp({ db, scrape: faultArmedScrape });
 const server = await new Promise<ReturnType<typeof app.listen>>((resolve) => {
@@ -121,10 +125,14 @@ const server = await new Promise<ReturnType<typeof app.listen>>((resolve) => {
 say(`[recording] local backend on ${LOCAL_API} (shared local DB, fault-armed runner)`);
 
 // --- 2. Local frontend dev server, proxied at the local backend ---
+// Spawned as plain node on the vite binary: npm.cmd needs a shell on
+// Windows and Node 24 rejects shell-less .cmd spawn with EINVAL, which
+// killed a recording mid-cut. This sidesteps shells entirely.
 const frontendDir = join(process.cwd(), '..', 'frontend');
+const viteBin = join(frontendDir, 'node_modules', 'vite', 'bin', 'vite.js');
 const vite: ChildProcess = spawn(
-  process.platform === 'win32' ? 'npm.cmd' : 'npm',
-  ['run', 'dev', '--', '--port', String(FRONTEND_PORT), '--strictPort'],
+  process.execPath,
+  [viteBin, '--port', String(FRONTEND_PORT), '--strictPort'],
   {
     cwd: frontendDir,
     stdio: 'inherit',
