@@ -33,7 +33,7 @@ import {
   isUniqueViolation,
   reactivateTrackedByIdentity,
 } from '../src/persistence/repositories.js';
-import { withDemoFault } from './fault-inject.js';
+import { rearmDemoFault, withDemoFault, type DemoFault } from './fault-inject.js';
 import { scrapeProduct } from '../src/scraper/store/scrape.js';
 
 const BACKEND_PORT = 4100;
@@ -96,13 +96,25 @@ if ((process.env['DEMO_FAULT'] ?? '') === '') {
   process.env['DEMO_FAULT'] = 'http-503-once';
 }
 
+// --- 0. Intro frame: repo, guide, command — the driver is already
+// capturing, so this doubles as the 0:00-0:25 segment while servers boot.
+say('repo: product-price-tracker  |  guide: backend/tools/HEADED_RECORDING.md');
+say('command: cd backend  &&  npm run record:headed   (= tsx tools/recording-run.ts)');
+say('plan: 503-once on target 1, timeout-once on target 2, o99 terminal fail,');
+say('      then scrape log, CSV export, price history — one causal chain, ~3 minutes.');
+await sleep(12000);
+
 // --- 1. Local backend, in-process, fault-armed runner, shared local DB ---
 const pool = await getPool();
 if (pool === null) throw new Error('[recording] getPool() returned null despite local DATABASE_URL');
 // Narrowed once: every later use (including inside closures below) sees a
 // non-null pool, so a null DB can never sneak into the chain mid-run.
 const db = pool;
-const app = createApp({ db, scrape: withDemoFault(scrapeProduct) });
+// One wrapper for the whole cut: re-armed per target below, so the cut is
+// deterministic whether seeding scrapes (fresh DB) burn the initial arming
+// or dedupe (existing DB) leaves it intact.
+const faultArmedScrape = withDemoFault(scrapeProduct);
+const app = createApp({ db, scrape: faultArmedScrape });
 const server = await new Promise<ReturnType<typeof app.listen>>((resolve) => {
   const s = app.listen(BACKEND_PORT, '127.0.0.1', () => resolve(s));
 });
@@ -193,11 +205,16 @@ say('INE Price Tracker - observable headed run of the live scraper');
 say('chain: real store -> local backend -> local DB -> local frontend -> this browser');
 say(`tracked targets: ${trackedIds.length}  |  schedule: every 2 hours  |  store: demo.inelabteamdev.com`);
 say('');
+say('production scrape path is HTTP-first: fetch + parse + validate. The headed');
+say('browser below is the observability surface — it writes no prices, it shows');
+say('the real storefront while the same runner executes and records its retries.');
+say('');
 say('what this run proves:');
 say('   1. real store scrapes through the real runner, per-attempt output');
 say('   2. a transient 503 retried with backoff inside ONE persisted chain');
-say('   3. history and CSV never gain invented values');
-await sleep(10000);
+say('   3. a slow upstream (timeout) retried the same way, same chain shape');
+say('   4. history and CSV never gain invented values');
+await sleep(6000);
 
 flip('browser');
 say('(browser) local dashboard - same DB the terminal writes');
@@ -226,6 +243,20 @@ interface ScrapeSummary {
 }
 for (const [index, targetId] of trackedIds.entries()) {
   const [storeProductId, selectedOption] = pairs[index] as [string, string];
+  // Explicit per-target arming: deterministic on a fresh DB (where seeding
+  // scrapes burn the initial arming) and on an existing one (where dedupe
+  // skips seeding scrapes). Target 3 runs clean — the happy path.
+  const fault: DemoFault | null =
+    index === 0 ? 'http-503-once' : index === 1 ? 'timeout-once' : null;
+  if (fault !== null) {
+    rearmDemoFault(faultArmedScrape, fault);
+    say(
+      `fault armed for ${storeProductId}/${selectedOption}: ${fault} ` +
+        `(first attempt fails transiently, runner retries with backoff)`,
+    );
+  } else {
+    say(`no fault for ${storeProductId}/${selectedOption}: clean happy path`);
+  }
   const summary = await api<ScrapeSummary>(
     `/api/tracked-products/${targetId}/scrape`,
     { method: 'POST' },
@@ -283,7 +314,8 @@ await page.goto(`${LOCAL_APP}/#/tracked/${trackedIds[0]}?tab=log`, {
   timeout: 45000,
 }).catch(() => {});
 await sleep(12000);
-say('(browser) CSV export - one row per scrape attempt');
+say('(browser) CSV export - one row per scrape attempt: retried rows carry');
+say('empty price/stock, the success row carries the validated values.');
 await page.goto(`${LOCAL_APP}/#/app`, { waitUntil: 'networkidle', timeout: 45000 }).catch(() => {});
 await sleep(6000);
 await page.getByRole('button', { name: /Export CSV/ }).click().catch(() => {});
@@ -291,12 +323,24 @@ await sleep(4000);
 await page.getByRole('button', { name: /^Export CSV$/ }).last().click().catch(() => {});
 await sleep(9000);
 
+say('(browser) price history - three products, validated observations only');
+await page.goto(`${LOCAL_APP}/#/tracked/${trackedIds[1]}?tab=history`, {
+  waitUntil: 'networkidle',
+  timeout: 45000,
+}).catch(() => {});
+await sleep(10000);
+
 flip('terminal');
 say('STEP 5  -  reliability recap');
 say('   15s upstream timeout  |  3 attempts  |  backoff + jitter (1s / 2s / 4s)');
 say('   timeout, 429 and 5xx are transient -> retried;  terminal codes -> failed, recorded honestly');
 say('   external cron every 2 hours + keep-alive ping; no always-on loop (free tier)');
 say('   only fully validated observations become price history');
+say('');
+say('to be explicit: the production scraper is HTTP-first because that is');
+say('sufficient for this storefront. The headed browser in this video wrote no');
+say('prices — it is the observability surface over the same runner and the same');
+say('run IDs shown above.');
 say('');
 say('persisted attempt rows (this run, same IDs as the browser showed):');
 for (const [index, targetId] of trackedIds.entries()) {
@@ -307,7 +351,10 @@ await printChain('2626/o99', badId);
 await sleep(10000);
 
 // Guarantee the cut stays inside the required 2-4 minute window.
-const pad = 118000 - (Date.now() - started);
+// Budget: baseline cut ran 2:32; added segments (intro, second fault,
+// history, closing) add ~40s, so pad toward ~3:15 and never past 3:50.
+const elapsed = Date.now() - started;
+const pad = Math.min(195000 - elapsed, 230000 - elapsed);
 if (pad > 0) await sleep(pad);
 
 await browser.close();

@@ -45,10 +45,14 @@ HEADLESS=1 npx tsx tools/headed-scrape.ts 2626 o1   # CI/headless
 ## Demo fault injection (`tools/fault-inject.ts`)
 
 - `DEMO_FAULT=http-503-once` (default; `timeout-once` also supported) makes
-  the FIRST scrape call fail with the same transient failure shape the real
+  the next scrape call fail with the same transient failure shape the real
   503/timeout paths produce (`http_5xx` / `timeout`, `transient: true`).
-  Every later call delegates to the real scraper — the wrapper never fakes
-  a success.
+  Every call after that delegates to the real scraper — the wrapper never
+  fakes a success.
+- The recording shows both faults in one cut via `rearmDemoFault`: 503 on
+  the first target, timeout on the second, clean happy path on the third.
+  Re-arming is explicit per target because seeding scrapes (fresh DB) would
+  otherwise burn a one-shot arming before the demonstration starts.
 - The retry decision stays with the runner: the wrapper only supplies the
   transient failure, so `retried -> success` is the production retry path,
   not a hand-rolled loop.

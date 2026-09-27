@@ -80,21 +80,51 @@ export function withDemoFault(scrape: ScrapeFn): ScrapeFn {
   console.log(
     `[fault-inject] armed: first scrape call fails transiently (${fault.errorCode}), every later call uses the real scraper`,
   );
+  let spec: FaultSpec = fault;
   let armed = true;
-  return async (input: ScrapeInput): Promise<ScrapeResult> => {
+  const wrapped: ScrapeFn = async (input: ScrapeInput): Promise<ScrapeResult> => {
     if (armed) {
       armed = false;
       const failure: ScrapeFailure = {
         ok: false,
         productId: input.productId,
         selectedOption: input.selectedOption,
-        errorCode: fault.errorCode,
-        errorMessage: fault.errorMessage,
+        errorCode: spec.errorCode,
+        errorMessage: spec.errorMessage,
         durationMs: 5,
-        transient: isTransientCode(fault.errorCode),
+        transient: isTransientCode(spec.errorCode),
       };
       return failure;
     }
     return scrape(input);
   };
+  rearmers.set(wrapped, (next: DemoFault) => {
+    const following = FAULTS[next];
+    if (!isTransientCode(following.errorCode)) {
+      throw new Error(`fault-inject: ${next} maps to non-transient code ${following.errorCode}`);
+    }
+    spec = following;
+    armed = true;
+  });
+  return wrapped;
+}
+
+/**
+ * Re-arm the demo fault on a wrapper returned by withDemoFault. The
+ * recording uses this to show BOTH faults in one cut (503 on the first
+ * target, timeout on the second): seeding scrapes also flow through the
+ * wrapper, so a one-shot arming would burn at seed time on a fresh DB.
+ * Explicit re-arming keeps the demonstration deterministic on any DB state.
+ * Throws on a plain (never-wrapped) scraper — silently skipping would fake
+ * a fault demonstration that never happened.
+ */
+const rearmers = new WeakMap<ScrapeFn, (next: DemoFault) => void>();
+
+export function rearmDemoFault(wrapped: ScrapeFn, next: DemoFault): void {
+  const rearm = rearmers.get(wrapped);
+  if (rearm === undefined) {
+    throw new Error('[fault-inject] rearm requested on a scraper without an armed wrapper');
+  }
+  rearm(next);
+  console.log(`[fault-inject] re-armed: next scrape call fails transiently (${FAULTS[next].errorCode})`);
 }
