@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { rescrapeTarget } from "../../services/api";
 import { Modal } from "./Modal";
 import { PrimaryButton, SecondaryButton } from "./controls";
@@ -29,9 +29,24 @@ export function ManualScrapeDialog({
   const [summary, setSummary] = useState<{ succeeded: number; failed: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  // Latest callback without re-subscribing: parents (rows especially) pass
+  // fresh inline closures every render, and re-running a scrape per render
+  // would bill the store once per paint.
+  const onFinishedRef = useRef(onFinished);
+  onFinishedRef.current = onFinished;
+  // Exactly-once guard per (target, attempt, opening): StrictMode mounts the
+  // effect twice in dev, and aborting only cancels waiting — the POST is
+  // already on the wire. The key resets when the dialog closes.
+  const firedRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      firedRef.current = null;
+      return;
+    }
+    const key = `${targetId}:${attempt}`;
+    if (firedRef.current === key) return;
+    firedRef.current = key;
     let cancelled = false;
     const controller = new AbortController();
     setPhase("running");
@@ -46,7 +61,7 @@ export function ManualScrapeDialog({
         if (cancelled) return;
         setSummary(result);
         setPhase("success");
-        onFinished();
+        onFinishedRef.current();
       } catch (runError) {
         if (cancelled || (runError as { name?: string } | null)?.name === "AbortError") return;
         setError(runError instanceof Error ? runError.message : "Manual scrape failed");
@@ -61,7 +76,7 @@ export function ManualScrapeDialog({
       controller.abort();
       window.clearInterval(timer);
     };
-  }, [open, targetId, attempt, onFinished]);
+  }, [open, targetId, attempt]);
 
   return (
     <Modal open={open} onClose={onClose} labelledBy={titleId}>
