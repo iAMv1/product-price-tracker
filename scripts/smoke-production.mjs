@@ -13,9 +13,9 @@
 const FRONTEND = process.env.SMOKE_FRONTEND_URL ?? 'https://product-price-tracker-ochre.vercel.app';
 const API = process.env.SMOKE_API_URL ?? 'https://ppt-backend-lyiv.onrender.com';
 
-async function get(path, { base = API, expect = 200 } = {}) {
+async function get(path, { base = API, expect = 200, timeout = 25000 } = {}) {
   const url = `${base}${path}`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(25000) });
+  const res = await fetch(url, { signal: AbortSignal.timeout(timeout) });
   if (res.status !== expect) {
     throw new Error(`${url} -> HTTP ${res.status}, expected ${expect}`);
   }
@@ -40,7 +40,9 @@ const checks = [
     }
   }],
   ['store search answers', async () => {
-    const body = await (await get('/api/products/search?q=ukulele')).json();
+    // Generous budget: post-deploy Render is cold and a full store walk
+    // fans out to dozens of upstream pages. Read-only either way.
+    const body = await (await get('/api/products/search?q=ukulele', { timeout: 120000 })).json();
     if (typeof body.count !== 'number') throw new Error('search shape changed');
   }],
 ];
