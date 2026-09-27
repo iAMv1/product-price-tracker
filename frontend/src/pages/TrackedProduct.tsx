@@ -194,8 +194,13 @@ export function TrackedProduct({ targetId }: { targetId: string }) {
   const lowest = prices.length > 0 ? Math.min(...prices) : null;
   const current = prices.length > 0 ? (prices[0] ?? null) : null;
   const first = prices.length > 0 ? (prices[prices.length - 1] ?? null) : null;
-  const change = current !== null && first !== null && first !== 0 ? current - first : null;
-  const changePct = change !== null && first ? (change / first) * 100 : null;
+  // One observation has no past to compare against: show no delta pill
+  // rather than a "0.0%" that implies a measured flatline.
+  const change =
+    prices.length > 1 && current !== null && first !== null && first !== 0
+      ? ((current - first) / first) * 100
+      : null;
+  const changePct = change;
   const points = rangedHistory
     .slice()
     .reverse()

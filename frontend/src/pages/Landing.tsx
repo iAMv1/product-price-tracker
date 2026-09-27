@@ -393,7 +393,7 @@ export default function Landing() {
               id="landing-search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search for a product (e.g., laptop, headphones)…"
+              placeholder="Search for a product (e.g., tablet, ukulele, camera)…"
               autoComplete="off"
               className="h-12 w-full rounded-xl border border-border bg-card px-4 text-[15px] outline-hidden placeholder:text-muted/80 focus:border-primary"
             />
